@@ -1,4 +1,5 @@
 // Tests des liens de partage (node --test).
+import './lang-fr.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { shareLink, parseShareLink } from '../../web/js/ui/link.js';

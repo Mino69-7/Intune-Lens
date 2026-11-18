@@ -96,15 +96,15 @@ function Invoke-IalSync {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $prev = $State.Data
     $reason = ''
-    if ($Mode -eq 'incremental' -and -not $prev) { $Mode = 'full'; $reason = ' (aucune donnée existante)' }
-    elseif ($Mode -eq 'incremental' -and (Test-IalFullResyncDue -Data $prev)) { $Mode = 'full'; $reason = " (dernière synchro complète de plus de $($script:IalConfig.FullResyncAfterDays) jour(s))" }
+    if ($Mode -eq 'incremental' -and -not $prev) { $Mode = 'full'; $reason = (Tx ' (aucune donnée existante)' ' (no existing data)') }
+    elseif ($Mode -eq 'incremental' -and (Test-IalFullResyncDue -Data $prev)) { $Mode = 'full'; $reason = (Tx " (dernière synchro complète de plus de $($script:IalConfig.FullResyncAfterDays) jour(s))" " (last full sync older than $($script:IalConfig.FullResyncAfterDays) day(s))") }
 
     $State.StartedAt = (Get-Date).ToString('o')
     $State.LastError = $null
     $State.Done = 0; $State.Total = 0
     $script:IalGraph.Status = $State
     $req0 = $script:IalGraph.Stats.Requests
-    Write-IalLog -Level INFO -Message "Synchronisation $(if ($Mode -eq 'full') { 'complète' } else { 'incrémentale' })$reason : début."
+    Write-IalLog -Level INFO -Message (Tx "Synchronisation $(if ($Mode -eq 'full') { 'complète' } else { 'incrémentale' })$reason : début." "$(if ($Mode -eq 'full') { 'Full' } else { 'Incremental' }) sync${reason}: started.")
 
     try {
         # 1. Groupes et filtres (listes légères, relues entièrement)
@@ -114,7 +114,7 @@ function Invoke-IalSync {
         $filters = @{}
         try { $filters = Get-IalFilters }
         catch {
-            Write-IalLog -Level WARN -Message "Filtres d'assignation illisibles : $($_.Exception.Message)"
+            Write-IalLog -Level WARN -Message (Tx "Filtres d'assignation illisibles : $($_.Exception.Message)" "Assignment filters unreadable: $($_.Exception.Message)")
             if ($prev) { $filters = $prev.Filters }
         }
 
@@ -131,9 +131,9 @@ function Invoke-IalSync {
             if ($_.Exception.Data['IalKind'] -eq 'Forbidden') {
                 $devices = [System.Collections.Generic.List[object]]::new()
                 $uncovered.Add([ordered]@{ key = 'managedDevices'; family = 'Appareils (fiches Utilisateur / Machine)'; reason = 'Accès refusé par Graph (403)' })
-                Write-IalLog -Level WARN -Message 'Appareils : accès refusé (403), fiches Utilisateur / Machine indisponibles.'
+                Write-IalLog -Level WARN -Message (Tx 'Appareils : accès refusé (403), fiches Utilisateur / Machine indisponibles.' 'Devices: access denied (403), User / Device pages unavailable.')
             }
-            else { Write-IalLog -Level WARN -Message "Appareils illisibles : $($_.Exception.Message) (données précédentes conservées)." }
+            else { Write-IalLog -Level WARN -Message (Tx "Appareils illisibles : $($_.Exception.Message) (données précédentes conservées)." "Devices unreadable: $($_.Exception.Message) (previous data kept).") }
         }
         Assert-IalSyncNotCancelled $State
         $familySyncAt = @{}
@@ -155,7 +155,7 @@ function Invoke-IalSync {
             catch {
                 if ($_.Exception.Data['IalKind'] -eq 'Forbidden') {
                     $uncovered.Add([ordered]@{ key = $t.Key; family = $t.Family; reason = 'Accès refusé par Graph (403)' })
-                    Write-IalLog -Level WARN -Message "Type $($t.Key) : accès refusé (403), marqué non couvert."
+                    Write-IalLog -Level WARN -Message (Tx "Type $($t.Key) : accès refusé (403), marqué non couvert." "Type $($t.Key): access denied (403), marked as not covered.")
                     continue
                 }
                 throw
@@ -224,19 +224,19 @@ function Invoke-IalSync {
         $State.LastSyncStats = $stats
         $State.LastDurationSec = $stats.durationSec
         $State.Phase = 'done'; $State.Message = ''
-        Write-IalLog -Level INFO -Message ("Synchronisation {0} terminée en {1} s : {2:N0} groupes, {3:N0} objets, {9:N0} appareils ({4} nouveaux, {5} modifiés, {6} supprimés), {7} assignations relues, {8} requêtes." -f `
-                $(if ($Mode -eq 'full') { 'complète' } else { 'incrémentale' }), $stats.durationSec, $index.Counts.groups, $index.Counts.objects,
+        Write-IalLog -Level INFO -Message ((Tx 'Synchronisation {0} terminée en {1} s : {2:N0} groupes, {3:N0} objets, {9:N0} appareils ({4} nouveaux, {5} modifiés, {6} supprimés), {7} assignations relues, {8} requêtes.' 'Sync ({0}) finished in {1} s: {2:N0} groups, {3:N0} objects, {9:N0} devices ({4} new, {5} changed, {6} deleted), {7} assignments re-read, {8} requests.') -f `
+                $(if ($Mode -eq 'full') { Tx 'complète' 'full' } else { Tx 'incrémentale' 'incremental' }), $stats.durationSec, $index.Counts.groups, $index.Counts.objects,
             $stats.added, $stats.changed, $stats.deleted, $stats.assignmentsRead, $stats.requests, $index.Counts.devices)
     }
     catch [System.OperationCanceledException] {
         $State.Phase = if ($State.Index) { 'done' } else { 'idle' }
         $State.Message = ''
-        Write-IalLog -Level WARN -Message 'Synchronisation annulée ; les données précédentes restent affichées.'
+        Write-IalLog -Level WARN -Message (Tx 'Synchronisation annulée ; les données précédentes restent affichées.' 'Sync cancelled; the previous data stays on screen.')
     }
     catch {
         $State.Phase = 'error'
         $State.LastError = $_.Exception.Message
-        Write-IalLog -Level ERROR -Message "Synchronisation interrompue : $($_.Exception.Message)"
+        Write-IalLog -Level ERROR -Message (Tx "Synchronisation interrompue : $($_.Exception.Message)" "Sync interrupted: $($_.Exception.Message)")
         throw
     }
     finally {
@@ -272,6 +272,7 @@ function Start-IalSyncJob {
 
     $settings = @{
         LogDir     = $(if ($script:IalLog.FilePath) { Split-Path $script:IalLog.FilePath -Parent } else { $null })
+        Lang       = $script:IalLog.Lang
         CacheDir   = $script:IalCache.Directory
         CacheOn    = $script:IalCache.Enabled
         FixtureDir = $script:IalMock.FixturesDir
@@ -283,7 +284,7 @@ function Start-IalSyncJob {
         $ErrorActionPreference = 'Stop'
         foreach ($f in 'Config', 'Log', 'GraphClient', 'Collectors', 'Index', 'Cache', 'Sync') { . (Join-Path $root "src\$f.ps1") }
         try {
-            if ($settings.LogDir) { Initialize-IalLog -Directory $settings.LogDir } else { Initialize-IalLog }
+            if ($settings.LogDir) { Initialize-IalLog -Directory $settings.LogDir -Lang $settings.Lang } else { Initialize-IalLog -Lang $settings.Lang }
             Initialize-IalCache -Directory $settings.CacheDir -Disabled:(-not $settings.CacheOn)
             try {
                 if ($state.Contains('SimulateJobInitFailure') -and $state.SimulateJobInitFailure) {

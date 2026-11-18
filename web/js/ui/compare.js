@@ -10,11 +10,11 @@
 // Utilisateurs / machines : éléments ciblés (Inclus / Exclu) + appartenance aux groupes Entra (« Membre »).
 
 import { asArray, norm, toCsv, toTsv } from './model.js';
-import { T, typeLabel, filterLabel, intentLabel, fmt } from '../i18n.fr.js';
+import { T, typeLabel, filterLabel, intentLabel, familyLabel, fmt, L, LOCALE, srv } from '../i18n.js';
 
-export const GAP_LABEL = { same: 'Identique', diff: 'Différent', onlyA: 'Seulement A', onlyB: 'Seulement B' };
+export const GAP_LABEL = { same: L('Identique', 'Identical'), diff: L('Différent', 'Different'), onlyA: L('Seulement A', 'Only A'), onlyB: L('Seulement B', 'Only B') };
 const GAP_ORDER = { diff: 0, onlyA: 1, onlyB: 2, same: 3 };
-const collator = new Intl.Collator('fr-FR', { sensitivity: 'base', numeric: true });
+const collator = new Intl.Collator(LOCALE, { sensitivity: 'base', numeric: true });
 
 /** Une « face » de ligne : ce que A (ou B) a pour cet élément. */
 function side(mode, intent, filter, via) {
@@ -24,7 +24,7 @@ function side(mode, intent, filter, via) {
     filterKey: filter ? `${filter.id}|${filter.mode}` : '',
     intentText: intentLabel(intent),
     filterText: filterLabel(filter),
-    via: via || '',
+    via: srv(via) || '',
   };
 }
 
@@ -71,10 +71,10 @@ export function compareGroups(viewA, viewB) {
     // Exclusions du groupe sur une règle globale (seule partie des règles globales qui varie d'un groupe à l'autre)
     for (const g of asArray(view.global)) {
       if (!g.excludedForGroup) continue;
-      const via = T.via[g.target] || g.via || '';
+      const via = T.via[g.target] || srv(g.via) || '';
       put(`x:${g.objectId}:${g.target}`, {
         objectId: g.objectId, name: g.name, family: 'Exclusions sur règles globales', platform: g.platform || '',
-        typeLabel: `Exclu de « ${via} »`, odataType: null,
+        typeLabel: L(`Exclu de « ${via} »`, `Excluded from "${via}"`), odataType: null,
       }, which, side('exclude', null, null, via));
     }
   }
@@ -95,9 +95,9 @@ export function compareObjects(viewA, viewB) {
           type: 'item', key,
           groupId: isGroup ? a.groupId : null,
           groupExists: a.groupExists !== false,
-          name: isGroup ? a.groupName : isOther ? 'Cible non prise en charge' : (T.via[a.target] || a.via),
+          name: isGroup ? srv(a.groupName) : isOther ? L('Cible non prise en charge', 'Unsupported target') : (T.via[a.target] || srv(a.via)),
           family: isGroup ? 'Groupes' : isOther ? 'Autres cibles' : 'Cibles globales',
-          typeLabel: isGroup ? 'Groupe Entra' : isOther ? 'Autre cible' : 'Cible globale',
+          typeLabel: isGroup ? T.kindLabel.group : isOther ? L('Autre cible', 'Other target') : L('Cible globale', 'Global target'),
           platform: '', a: null, b: null,
         };
         map.set(key, r);
@@ -122,7 +122,7 @@ export function compareProfiles(viewA, viewB) {
   for (const [which, view] of [['a', viewA], ['b', viewB]]) {
     for (const c of asArray(view.configs)) {
       const inc = asArray(c.targets).filter((t) => t.mode === 'include');
-      const via = [...new Set((inc.length ? inc : asArray(c.targets)).flatMap((t) => asArray(inc.length ? t.via : t.exclVia)))].join(', ');
+      const via = [...new Set((inc.length ? inc : asArray(c.targets)).flatMap((t) => asArray(inc.length ? t.via : t.exclVia).map(srv)))].join(', ');
       put(`o:${c.objectId}`, {
         objectId: c.objectId, name: c.name, family: c.family, platform: c.platform || '',
         typeLabel: typeLabel(c.odataType), odataType: c.odataType,
@@ -131,7 +131,7 @@ export function compareProfiles(viewA, viewB) {
     for (const g of asArray(view.groups)) {
       put(`g:${g.id}`, {
         groupId: g.id, name: g.name, family: GROUPS_FAMILY, platform: '',
-        typeLabel: g.used ? fmt.plural(g.used, 'élément Intune', 'éléments Intune') : 'Non utilisé dans Intune',
+        typeLabel: g.used ? fmt.plural(g.used, L('élément Intune', 'Intune item'), L('éléments Intune', 'Intune items')) : L('Non utilisé dans Intune', 'Not used in Intune'),
       }, which, side('member', null, null, ''));
     }
   }
@@ -172,7 +172,7 @@ export function buildCompareRows(rows, opts = {}) {
     const expanded = !opts.collapsed?.has(key);
     out.push({
       type: 'section', key, label: fam, count: list.length, expanded,
-      countText: fmt.plural(list.length, 'élément', 'éléments') + (gaps ? ` · ${fmt.plural(gaps, 'écart', 'écarts')}` : ' · identiques'),
+      countText: fmt.plural(list.length, L('élément', 'item'), L('éléments', 'items')) + (gaps ? ` · ${fmt.plural(gaps, L('écart', 'difference'), L('écarts', 'differences'))}` : L(' · identiques', ' · identical')),
     });
     if (expanded) out.push(...list);
     visible.push(...list);
@@ -180,12 +180,12 @@ export function buildCompareRows(rows, opts = {}) {
   return { rows: out, visible };
 }
 
-export const sideStatus = (s) => (s ? (s.mode === 'exclude' ? 'Exclu' : s.mode === 'member' ? 'Membre' : 'Inclus') : 'Absent');
+export const sideStatus = (s) => (s ? (s.mode === 'exclude' ? T.mode.exclude : s.mode === 'member' ? L('Membre', 'Member') : T.mode.include) : L('Absent', 'Missing'));
 export const sideDetail = (s) => (s ? [s.intentText, s.filterText].filter(Boolean).join(' · ') : '');
 
 export function compareExport(visible, nameA, nameB) {
-  const headers = ['Famille', 'Nom', 'Type', `Statut A (${nameA})`, 'Détail A', `Statut B (${nameB})`, 'Détail B', 'Écart'];
-  const rows = visible.map((r) => [r.family, r.name, r.typeLabel, sideStatus(r.a), sideDetail(r.a), sideStatus(r.b), sideDetail(r.b), GAP_LABEL[r.gap]]);
+  const headers = [L('Famille', 'Family'), L('Nom', 'Name'), 'Type', L(`Statut A (${nameA})`, `Status A (${nameA})`), L('Détail A', 'Details A'), L(`Statut B (${nameB})`, `Status B (${nameB})`), L('Détail B', 'Details B'), L('Écart', 'Difference')];
+  const rows = visible.map((r) => [familyLabel(r.family), r.name, r.typeLabel, sideStatus(r.a), sideDetail(r.a), sideStatus(r.b), sideDetail(r.b), GAP_LABEL[r.gap]]);
   return { headers, rows };
 }
 

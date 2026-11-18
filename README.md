@@ -1,187 +1,189 @@
-<img src="web/img/logo.svg" width="72" alt="Logo Intune Lens">
+<img src="web/img/logo.svg" width="72" alt="Intune Lens logo">
 
-# IntuneAssignLens
+# Intune Lens
 
-**Intune Lens** (projet IntuneAssignLens) : outil local, **en lecture seule**, qui répond à deux questions sur Intune :
+**Intune Lens** is a local, **read-only** tool that answers the questions the Intune portal makes you click around for:
 
-- **Utilisateur / Machine** : quels groupes et quelles configurations visent cette personne, PC par PC, ou ce poste ?
-- **Groupe vers éléments** : qu'est-ce qui est assigné à ce groupe Entra (configurations, conformités, applications, scripts…) ?
-- **Élément vers groupes** : à quels groupes cet élément est-il assigné, en inclusion ou en exclusion ?
+- **User / Device**: which groups and which configurations target this person, PC by PC, or this device?
+- **Group → items**: what is assigned to this Entra group (configurations, compliance policies, apps, scripts…)?
+- **Item → groups**: which groups is this item assigned to, included or excluded?
 
-L'interface s'ouvre dans Microsoft Edge. Elle est servie par un petit serveur PowerShell qui n'écoute que sur `127.0.0.1`. Aucune donnée ne quitte le poste, hormis les lectures vers Microsoft Graph.
+The interface opens in Microsoft Edge. It is served by a small PowerShell server that listens on `127.0.0.1` only. No data leaves your computer apart from read requests to Microsoft Graph.
 
-> **État** : utilisable sur un tenant réel, en lecture seule. Recherche par utilisateur, machine, groupe Entra ou configuration.
+The interface is available in **English** (default) and **French**: ⚙ → Language. The choice is kept across restarts.
 
 ---
 
-## 1. Prérequis
+## 1. Requirements
 
-| Élément | Détail |
+| Item | Details |
 |---|---|
-| Système | Windows 10 ou 11, Microsoft Edge à jour |
-| PowerShell | **PowerShell 7** (`pwsh`). `Installer.cmd` propose de l'installer s'il manque. Windows PowerShell 5.1 est refusé avec un message clair. |
-| Mode de langage | `FullLanguage`. En mode restreint (WDAC / AppLocker), l'outil s'arrête et explique pourquoi. |
-| Module Graph (mode réel uniquement) | `Microsoft.Graph.Authentication`. `Installer.cmd` propose de l'installer pour votre compte. L'outil lui-même n'installe jamais rien. |
-| Droits locaux | **Aucun droit administrateur.** Pas de service, pas de tâche planifiée, pas de registre. |
-| Rôles Entra / Intune | Lecture des objets Intune et des groupes : par exemple Global Reader ou Intune Administrator. |
-| Tenant | **N'importe lequel** : l'outil se connecte au tenant du compte avec lequel vous vous connectez. Rien n'est propre à une organisation. |
+| System | Windows 10 or 11, up-to-date Microsoft Edge |
+| PowerShell | **PowerShell 7** (`pwsh`). `Installer.cmd` offers to install it if missing. Windows PowerShell 5.1 is refused with a clear message. |
+| Language mode | `FullLanguage`. In constrained mode (WDAC / AppLocker), the tool stops and explains why. |
+| Graph module (real mode only) | `Microsoft.Graph.Authentication`. `Installer.cmd` offers to install it for your account. The tool itself never installs anything. |
+| Local rights | **No administrator rights.** No service, no scheduled task, no registry changes. |
+| Entra / Intune roles | Read access to Intune objects and groups, for example Global Reader or Intune Administrator. |
+| Tenant | **Any tenant**: the tool connects to the tenant of the account you sign in with. Nothing is specific to one organization. |
 
-## 2. Installation (une seule fois)
+## 2. Installation (once)
 
-1. Sur la page GitHub : **Code** → **Download ZIP**.
-   *Astuce : clic droit sur le ZIP → **Propriétés** → cochez **Débloquer** → OK. Windows n'affichera alors aucun avertissement.*
-2. Clic droit sur le ZIP → **Extraire tout…**, vers un dossier durable, par exemple `Documents\Intune-Lens`.
-3. Dans ce dossier, double-cliquez **`Installer.cmd`**.
-   - Si Windows affiche « Windows a protégé votre ordinateur » : **Informations complémentaires** → **Exécuter quand même**.
-   - Il trouve PowerShell 7 (ou propose de l'installer avec `winget`), débloque les fichiers du dossier, propose d'installer le module `Microsoft.Graph.Authentication` **pour votre compte** (sans droits administrateur), puis crée le raccourci **Intune Lens** avec le logo sur le **Bureau** et dans le **menu Démarrer**.
-4. Double-cliquez **Intune Lens**. Connectez-vous avec votre compte Microsoft professionnel : l'outil s'ouvre dans Edge, sur votre tenant.
+1. On the GitHub page: **Code** → **Download ZIP**.
+   *Tip: right-click the ZIP → **Properties** → tick **Unblock** → OK. Windows will then show no warning.*
+2. Right-click the ZIP → **Extract All…**, to a lasting folder, for example `Documents\Intune-Lens`.
+3. In that folder, double-click **`Installer.cmd`**.
+   - If Windows shows "Windows protected your PC": **More info** → **Run anyway**.
+   - It finds PowerShell 7 (or offers to install it with `winget`), unblocks the folder's files, offers to install the `Microsoft.Graph.Authentication` module **for your account** (no administrator rights), then creates the **Intune Lens** shortcut with its logo on the **Desktop** and in the **Start menu**.
+4. Double-click **Intune Lens**. Sign in with your work account: the tool opens in Edge, on your tenant.
 
-Ce que l'installation ne fait **pas** : pas de droits administrateur, pas de registre, pas de tâche planifiée, pas de service. Elle ne contourne jamais la stratégie d'exécution (pas de `-ExecutionPolicy Bypass`) : elle retire seulement la marque « téléchargé d'Internet » des fichiers du dossier. Sur un poste où la stratégie est `AllSigned` ou `Restricted`, elle s'arrête et le dit.
+What the setup does **not** do: no administrator rights, no registry, no scheduled task, no service. It never bypasses the execution policy (no `-ExecutionPolicy Bypass`): it only removes the "downloaded from the Internet" mark from the folder's files. On a computer where the policy is `AllSigned` or `Restricted`, it stops and says so.
 
-- **Mise à jour** : téléchargez le nouveau ZIP, remplacez le contenu du dossier, relancez `Installer.cmd`.
-- **Avec Git** : `git clone https://github.com/Mino69-7/Intune-Lens.git`, puis `Installer.cmd`.
-- **Dossier déplacé** : relancez `Installer.cmd`, il recrée le raccourci.
-- **Désinstallation** : `pwsh -File .\setup\Install-IntuneLens.ps1 -Uninstall` (retire les raccourcis, propose d'effacer le cache), puis supprimez le dossier.
+- **Update**: download the new ZIP, replace the folder's content, run `Installer.cmd` again.
+- **With Git**: `git clone https://github.com/Mino69-7/Intune-Lens.git`, then `Installer.cmd`.
+- **Folder moved**: run `Installer.cmd` again, it recreates the shortcut.
+- **Uninstall**: `pwsh -File .\setup\Install-IntuneLens.ps1 -Uninstall` (removes the shortcuts, offers to delete the cache and settings), then delete the folder.
 
-## 3. Démarrage
+## 3. Starting the tool
 
-### Mode démo (données fictives, aucun réseau)
+### Demo mode (fictitious data, no network)
 
 ```powershell
 pwsh -File .\Start-IntuneAssignLens.ps1 -Mock
 ```
 
-### Mode réel (votre tenant)
+### Real mode (your tenant)
 
 ```powershell
 pwsh -File .\Start-IntuneAssignLens.ps1
-pwsh -File .\Start-IntuneAssignLens.ps1 -TenantId <id-du-tenant>   # pour forcer un tenant
+pwsh -File .\Start-IntuneAssignLens.ps1 -TenantId <tenant-id>   # to force a tenant
 ```
 
-1. Une fenêtre de connexion Microsoft s'ouvre. Connectez-vous avec votre compte professionnel : l'outil lit le tenant de ce compte.
-2. **Premier lancement sur un tenant** : Microsoft peut afficher « Autorisations demandées » pour **Microsoft Graph Command Line Tools**, l'application officielle du module Microsoft Graph.
-   - Vérifiez qu'il ne liste que les permissions de **lecture** du §5.
-   - Les permissions Intune exigent un **consentement administrateur**. Si vous n'êtes pas administrateur, l'écran propose de demander l'approbation ; sinon, demandez à un administrateur Entra (Administrateur d'application cloud ou Administrateur général) d'accepter une fois pour l'organisation.
-   - Si seule `Device.Read.All` est refusée, l'outil démarre quand même (voir §5).
-3. Edge s'ouvre sur l'interface. Au premier lancement, la synchronisation complète se fait en arrière-plan, et sa progression s'affiche dans la pastille en haut à droite.
-4. `Ctrl+C` dans la console, ou ⚙ → « Arrêter l'outil », arrête le serveur et ferme la session Graph.
+1. A Microsoft sign-in window opens. Sign in with your work account: the tool reads that account's tenant.
+2. **First launch on a tenant**: Microsoft may show "Permissions requested" for **Microsoft Graph Command Line Tools**, the official application of the Microsoft Graph module.
+   - Check that it only lists the **read** permissions from §5.
+   - The Intune permissions require **admin consent**. If you are not an administrator, the screen offers to request approval; otherwise, ask an Entra administrator (Cloud Application Administrator or Global Administrator) to accept once for the organization.
+   - If only `Device.Read.All` is refused, the tool still starts (see §5).
+3. Edge opens on the interface. On the first launch, the full sync runs in the background; its progress is shown in the pill at the top right.
+4. `Ctrl+C` in the console, or ⚙ → "Stop the tool", stops the server and closes the Graph session.
 
-### Lancer en un double-clic
+### Starting with a double-click
 
-`Installer.cmd` crée le raccourci **Intune Lens** (Bureau et menu Démarrer). Il lance `pwsh -NoProfile -File "<dossier>\Start-IntuneAssignLens.ps1" -PauseOnError` : si le démarrage échoue, la fenêtre reste ouverte avec le message.
-- Le raccourci n'est pas versionné (`.gitignore`) : il contient des chemins propres à votre poste.
-- **Épingler au menu Démarrer** : Démarrer → Toutes les applications → clic droit sur « Intune Lens » → « Épingler à l'écran de démarrage ». Ou clic droit sur le raccourci du bureau → « Épingler à l'écran de démarrage ».
-- **Épingler à la barre des tâches** : clic droit sur le raccourci → « Afficher d'autres options » → « Épingler à la barre des tâches ».
-- La fenêtre PowerShell **doit rester ouverte** pendant l'utilisation : la fermer arrête l'outil.
-- Un favori dans Edge ne fonctionne pas : le port et le jeton de session changent à chaque lancement.
-- Si vous déplacez le dossier du projet, relancez `Installer.cmd`.
+`Installer.cmd` creates the **Intune Lens** shortcut (Desktop and Start menu). It runs `pwsh -NoProfile -File "<folder>\Start-IntuneAssignLens.ps1" -PauseOnError`: if startup fails, the window stays open with the message.
+- The shortcut is not versioned (`.gitignore`): it contains paths specific to your computer.
+- **Pin to Start**: Start → All apps → right-click "Intune Lens" → "Pin to Start". Or right-click the Desktop shortcut → "Pin to Start".
+- **Pin to the taskbar**: right-click the shortcut → "Show more options" → "Pin to taskbar".
+- The PowerShell window **must stay open** while you use the tool: closing it stops the tool.
+- An Edge bookmark does not work: the port and the session token change at every launch.
+- If you move the project folder, run `Installer.cmd` again.
 
-### Paramètres
+### Parameters
 
-| Paramètre | Effet |
+| Parameter | Effect |
 |---|---|
-| `-Mock` | Données fictives de `mock/fixtures`, aucune connexion. |
-| `-NoBrowser` | N'ouvre pas Edge ; l'adresse à ouvrir s'affiche dans la console. |
-| `-Port <n>` | Port local fixe (défaut : port libre aléatoire). |
-| `-TenantId <id>` | Force le tenant à la connexion. |
-| `-NoDiskCache` | N'écrit rien sur disque, ni cache ni journal. |
-| `-PauseOnError` | En cas d'erreur, attend Entrée avant de fermer la fenêtre (utilisé par le raccourci). |
-| `-EnableOptionalTypes <types>` | Lit aussi `deviceHealthScripts` (Remédiations), `windowsAutopilotDeploymentProfiles` ou `deviceEnrollmentConfigurations`. Ces types exigent une permission hors des 4 scopes : ils ne sont lus **que si votre jeton la contient déjà**. L'outil ne la demande jamais (voir §5). |
-| `-MockDataset modified` | Démo : jeu de données « modifié », pour voir la synchronisation incrémentale. |
-| `-DemoState syncing\|throttled\|error\|stale` | Démo : simule un état de synchronisation dans l'interface. |
+| `-Mock` | Fictitious data from `mock/fixtures`, no connection. |
+| `-NoBrowser` | Does not open Edge; the address to open is shown in the console. |
+| `-Port <n>` | Fixed local port (default: random free port). |
+| `-TenantId <id>` | Forces the tenant at sign-in. |
+| `-NoDiskCache` | Writes nothing to disk: no cache, log or settings. |
+| `-PauseOnError` | On error, waits for Enter before closing the window (used by the shortcut). |
+| `-EnableOptionalTypes <types>` | Also reads `deviceHealthScripts` (Remediations), `windowsAutopilotDeploymentProfiles` or `deviceEnrollmentConfigurations`. These types need a permission outside the requested scopes: they are read **only if your token already contains it**. The tool never requests it (see §5). |
+| `-MockDataset modified` | Demo: "modified" dataset, to see the incremental sync. |
+| `-DemoState syncing\|throttled\|error\|stale` | Demo: simulates a sync state in the interface. |
 
-## 4. Utilisation
+## 4. Using the tool
 
-Le guide illustré se trouve dans [docs/guide-lecture.md](docs/guide-lecture.md).
+The illustrated guide (in French) is in [docs/guide-lecture.md](docs/guide-lecture.md).
 
-| Touche | Action |
+| Key | Action |
 |---|---|
-| `/` | Rechercher |
-| `Échap` | Effacer ou fermer |
-| `↑` `↓` | Naviguer |
-| `Entrée` | Ouvrir |
-| `U` / `M` / `G` / `C` | Recherche Utilisateur / Machine / Groupe / Configuration |
-| `R` / `Maj+R` | Synchronisation incrémentale / complète |
-| `T` | Mode sombre / clair (aussi : ⚙ → interrupteur « Mode sombre ») |
+| `/` | Search |
+| `Esc` | Clear or close |
+| `↑` `↓` | Move |
+| `Enter` | Open |
+| `U` / `M` / `G` / `C` | Search a User / Machine (device) / Group / Configuration |
+| `R` / `Shift+R` | Incremental / full sync |
+| `T` | Dark / light mode (also: ⚙ → "Dark mode" switch) |
+| `Ctrl+V` | Open a link shared by a colleague |
 
-- **Export** : « Exporter CSV » (séparateur `;`, UTF-8, s'ouvre directement dans Excel) ou « Copier le tableau ».
-- **Comparer** : sur l'écran d'un groupe ou d'un élément, bouton « Comparer », puis choisissez dans la recherche un deuxième groupe (ou un deuxième élément : le type est verrouillé). Les deux colonnes A et B s'affichent côte à côte ; filtres « Écarts », « Seulement A », « Seulement B », « Différents » (inclus d'un côté, exclu de l'autre). ⇄ inverse A et B, « Fermer » revient à A, `Échap` annule le choix.
-- **Fiche Utilisateur** : onglets **Configurations** (avec, pour chaque élément, le ou les PC concernés : « Tous ses appareils », un PC précis, ou exclu sur un PC), **Groupes** (tous ses groupes Entra, ceux utilisés dans Intune en premier, 20 par page) et **Appareils** (dernière synchro, conformité, « Inactif » au-delà de 30 jours). Le filtre « Appareil » limite la liste à un PC.
-- **Fiche Machine** : utilisateur principal (cliquable), groupes de la machine, éléments ciblés avec la colonne « Ciblage » (par l'utilisateur ou par l'appareil).
-- **Ciblé ≠ appliqué** : les fiches montrent ce que les assignations visent. L'état de déploiement réel (réussi, en erreur) n'est pas lu, et les filtres d'assignation ne sont pas évalués (signalés).
-- **Comparer** fonctionne aussi entre deux utilisateurs ou deux machines (éléments ciblés + groupes Entra).
-- **Partager une fiche** : bouton **Copier le lien** en haut de chaque fiche. Il copie un lien `intune-lens://user/<identifiant>` (type + identifiant Microsoft, rien d'autre). Le collègue qui a Intune Lens le **colle (Ctrl+V)** n'importe où dans l'outil : la fiche s'ouvre. Le lien n'est pas cliquable (Teams, e-mail) : cela exigerait d'inscrire un protocole dans le registre Windows, ce que l'outil s'interdit. Le collègue ne voit que ce que ses propres droits Intune lui permettent de lire.
-- **Assignations globales** (Tous les utilisateurs / Tous les appareils) : affichées à titre **indicatif** sur l'écran d'un groupe. La v1 ne calcule pas l'appartenance réelle des membres.
+- **Search** opens on **User**. The selector at the top switches between User, Device, Entra group and Configuration.
+- **User page**: tabs **Configurations** (for each item, the PC or PCs concerned: "All their devices", one specific PC, or excluded on a PC), **Groups** (all their Entra groups, those used in Intune first, 20 per page) and **Devices** (last sync, compliance, "Inactive" after 30 days). The "Device" filter limits the list to one PC.
+- **Device page**: primary user (clickable), the device's groups, targeted items with the "Targeting" column (through the user or through the device).
+- **Targeted ≠ applied**: the pages show what the assignments target. The actual deployment state (succeeded, failed) is not read, and assignment filters are not evaluated (they are flagged).
+- **Mixed exclusions**: when an item is included through a user group and excluded through a device group (or the other way round), Intune does not support the combination and the exclusion may not apply. The tool keeps the item "Included" and shows "exclusion not guaranteed".
+- **Export**: "Export CSV" (`;` separator, UTF-8, opens directly in Excel) or "Copy table".
+- **Compare**: on any page, click "Compare", then pick a second item of the same type in the search. Columns A and B are shown side by side, with filters "Differences", "Only A", "Only B", "Different" (included on one side, excluded on the other). ⇄ swaps A and B, "Close" goes back to A, `Esc` cancels the pick. Works for groups, configurations, users and devices.
+- **Share a page**: the **Copy link** button at the top of each page copies an `intune-lens://user/<id>` link (type + Microsoft ID, nothing else). A colleague who has Intune Lens **pastes it (Ctrl+V)** anywhere in the tool and the page opens. The link is not clickable (Teams, email): that would require registering a protocol in the Windows registry, which the tool does not do. Your colleague only sees what their own Intune permissions allow them to read.
+- **Global assignments** (All users / All devices): shown **for information** on a group page. This version does not compute the members' actual membership.
 
-## 5. Droits Microsoft Graph
+## 5. Microsoft Graph permissions
 
-L'outil demande **uniquement** ces 5 permissions déléguées de **lecture** :
+The tool requests **only** these 5 delegated **read** permissions:
 
-| Permission | Pour lire |
+| Permission | To read |
 |---|---|
-| `DeviceManagementConfiguration.Read.All` | Configurations, catalogue de paramètres, ADMX, conformité, scripts PowerShell, sécurité, mises à jour, filtres |
-| `DeviceManagementApps.Read.All` | Applications, protection et configuration d'application |
-| `DeviceManagementManagedDevices.Read.All` | Appareils gérés et leur utilisateur principal (fiches Utilisateur / Machine) |
-| `Group.Read.All` | Noms des groupes, groupes d'un utilisateur |
-| `Device.Read.All` | Groupes d'une machine (objet appareil Entra) |
+| `DeviceManagementConfiguration.Read.All` | Configurations, settings catalog, ADMX, compliance, PowerShell scripts, endpoint security, updates, filters |
+| `DeviceManagementApps.Read.All` | Apps, app protection and app configuration |
+| `DeviceManagementManagedDevices.Read.All` | Managed devices and their primary user (User / Device pages) |
+| `Group.Read.All` | Group names, a user's groups |
+| `Device.Read.All` | A device's groups (Entra device object) |
 
-- **`Device.Read.All` est facultative.** Elle demande un consentement administrateur, une seule fois. Si elle est refusée, l'outil se connecte avec les 4 autres et fonctionne : seuls les groupes des machines manquent, ce que les fiches signalent (« Données partielles »).
+- **`Device.Read.All` is optional.** It requires admin consent, once. If it is refused, the tool signs in with the other 4 and works: only the devices' groups are missing, which the pages report ("Partial data").
+- **Read-only by design.** Every request goes through a single function (`Invoke-GraphRead`) that refuses:
+  - any method other than GET;
+  - any host other than `graph.microsoft.com`.
 
-- **Lecture seule par construction.** Toutes les requêtes passent par une fonction unique (`Invoke-GraphRead`) qui refuse :
-  - toute méthode autre que GET ;
-  - tout hôte autre que `graph.microsoft.com`.
+  Only exception: the `$batch` request (POST), accepted only if **every** sub-request is a GET. The automated tests prove these refusals.
+- **Optional types.** The Microsoft documentation requires another permission for **Remediations** (`DeviceManagementScripts.Read.All`), **Autopilot** and **Enrollment / ESP** (`DeviceManagementServiceConfig.Read.All`). These types are shown as "Not covered".
+  - If your token already contains the permission (existing broad consent), the status pill menu says so.
+  - You can then enable them with `-EnableOptionalTypes`.
+- Details per endpoint, with links to the documentation, are in [docs/verifications.md](docs/verifications.md) (in French).
 
-  Seule exception : la requête groupée `$batch` (POST), acceptée uniquement si **chacune** de ses sous-requêtes est un GET. Les tests automatisés prouvent ces refus.
-- **Types optionnels.** La documentation Microsoft (vérifiée en M4) exige une autre permission pour les **Remédiations** (`DeviceManagementScripts.Read.All`), **Autopilot** et **Inscription / ESP** (`DeviceManagementServiceConfig.Read.All`). Ces types sont affichés « Non couvert ».
-  - Si votre jeton contient déjà la permission (consentement large existant), le menu de la pastille l'indique.
-  - Vous pouvez alors les activer avec `-EnableOptionalTypes`.
-- Le détail par endpoint, avec les liens vers la documentation, se trouve dans [docs/verifications.md](docs/verifications.md).
+## 6. Data, cache, log and settings
 
-## 6. Données, cache et journal
+- **Later launches**: the cached data is shown at once ("Data from …"). An **incremental** sync follows: only new or changed items are read again.
+- **Full sync**: automatic if the last one is more than a day old, or on demand (`Shift+R`).
+- **Cache**: `%LOCALAPPDATA%\IntuneAssignLens\cache\`.
+  - The file is encrypted for your Windows account (DPAPI) and the folder is only accessible to your account.
+  - Writes are atomic: a power cut does not corrupt the cache.
+  - It contains names of configurations and groups, **never a token or script content**.
+  - To clear it: status pill menu → "Clear the local cache".
+- **Log**: `%LOCALAPPDATA%\IntuneAssignLens\logs\ial-YYYYMMDD.log`, plain text, no token.
+- **Settings**: `%LOCALAPPDATA%\IntuneAssignLens\prefs.json` (language and theme only, no tenant data). The browser cannot keep them because the local port changes at every launch.
+- **Incremental demo**: start with `-Mock`, stop, then start again with `-Mock -MockDataset modified`.
 
-- **Lancements suivants** : les données du cache s'affichent tout de suite (« Données du JJ/MM à HH:MM »). Une synchronisation **incrémentale** suit : seuls les éléments nouveaux ou modifiés sont relus.
-- **Synchronisation complète** : automatique si la dernière date de plus d'un jour, ou à la demande (`Maj+R`).
-- **Cache** : `%LOCALAPPDATA%\IntuneAssignLens\cache\`.
-  - Le fichier est chiffré pour votre compte Windows (DPAPI) et le dossier n'est accessible qu'à votre compte.
-  - L'écriture est atomique : une coupure ne corrompt pas le cache.
-  - Il contient des noms de configurations et de groupes, **jamais de jeton ni de contenu de script**.
-  - Pour l'effacer : menu de la pastille → « Effacer le cache local ».
-- **Journal** : `%LOCALAPPDATA%\IntuneAssignLens\logs\ial-AAAAMMJJ.log`, en clair, sans jeton.
-- **Démo de l'incrémental** : lancez `-Mock`, arrêtez, puis relancez avec `-Mock -MockDataset modified`.
+## 7. Security (summary)
 
-## 7. Sécurité (résumé)
-
-- Écoute sur `127.0.0.1` uniquement, port aléatoire.
-- Accès au serveur local :
-  - jeton de session aléatoire de 32 octets, comparé en temps constant ;
-  - contrôle des en-têtes `Host`, `Origin` et `Sec-Fetch-Site` ;
-  - liste blanche de fichiers.
-- En-têtes de réponse :
-  - **CSP stricte** sans aucun assouplissement (`'self'` uniquement) ;
+- Listens on `127.0.0.1` only, random port.
+- Access to the local server:
+  - random 32-byte session token, compared in constant time;
+  - checks on the `Host`, `Origin` and `Sec-Fetch-Site` headers;
+  - file allow-list.
+- Response headers:
+  - **strict CSP** without any relaxation (`'self'` only);
   - `Permissions-Policy`, `nosniff`, `no-referrer`.
-- Aucune ressource externe : polices système, aucun CDN, aucune télémétrie. Vérifiable dans Edge : F12 → onglet Réseau, seul `127.0.0.1` apparaît.
-- Aucune élévation, aucune persistance, aucun processus caché. Le seul processus lancé est Edge, dans une fenêtre visible.
-- Résultats des contrôles statiques : section « Static » de `tests/Run-Tests.ps1`.
+- No external resources: system fonts, no CDN, no telemetry. You can check in Edge: F12 → Network tab, only `127.0.0.1` appears.
+- No elevation, no persistence, no hidden process. The only process started is Edge, in a visible window.
+- Static check results: "Static" section of `tests/Run-Tests.ps1`.
 
-## 8. Dépannage
+## 8. Troubleshooting
 
-| Symptôme | Cause probable | Que faire |
+| Symptom | Likely cause | What to do |
 |---|---|---|
-| « IntuneAssignLens nécessite PowerShell 7 » | Lancé avec `powershell.exe` (5.1) | Lancez avec `pwsh -File …` |
-| « PowerShell est en mode ConstrainedLanguage » | WDAC / AppLocker | Voir avec l'équipe sécurité. L'outil ne contourne rien. |
-| « … n'est pas signé numériquement » / « cannot be loaded » | Fichiers marqués comme téléchargés | Relancez `Installer.cmd` (il les débloque), ou `Get-ChildItem -Recurse -File \| Unblock-File` |
-| `Installer.cmd` : « Stratégie d'exécution AllSigned / Restricted » | Stratégie imposée par votre organisation | Voir avec votre service informatique : l'outil ne la contourne pas |
-| « Module Microsoft.Graph.Authentication introuvable » | Module absent | Relancez `Installer.cmd`, ou `Install-Module Microsoft.Graph.Authentication -Scope CurrentUser` |
-| « Approbation de l'administrateur requise » à la connexion | Le tenant n'a pas encore consenti les permissions de lecture (§5) | Demandez à un administrateur Entra de les accepter une fois pour l'organisation |
-| « Impossible d'écouter sur 127.0.0.1:… » | Port occupé | Relancez (port aléatoire) ou utilisez `-Port <autre>` |
-| Edge ne s'ouvre pas | Edge introuvable | Relancez avec `-NoBrowser` et ouvrez l'adresse affichée |
-| « Session invalide » dans la page | Page rechargée (`F5`) ou outil relancé | Fermez l'onglet ; l'outil rouvre Edge avec un nouveau lien à chaque lancement |
-| « Serveur arrêté » dans la page | Console PowerShell fermée ou `Ctrl+C` | Relancez l'outil |
-| Pastille orange « Microsoft ralentit les requêtes » | Limitation Graph (HTTP 429) | Rien à faire : reprise automatique en respectant le délai demandé par Microsoft |
-| Console « Repli : synchronisation au premier plan » | La synchro en arrière-plan ne voit pas la session Graph (point V16) : bascule automatique | Rien à faire. L'interface ne répond pas pendant une synchro. Ouvrez une *issue* sur GitHub. |
-| Journal « Assignations illisibles … (HTTP 4xx) » | Endpoint ou permission inattendus | Ouvrez une *issue* sur GitHub avec la ligne (type et code HTTP) |
-| Remédiations / Autopilot / ESP absents | Permission hors des 4 scopes | Voir §5 et le menu de la pastille (« activable avec … ») |
-| Journal « Cache illisible ou corrompu : ignoré » | Fichier abîmé ou d'une autre version | Rien à faire : une synchronisation complète le remplace |
+| "Intune Lens requires PowerShell 7" | Started with `powershell.exe` (5.1) | Use the shortcut, or `pwsh -File …` |
+| "PowerShell is in ConstrainedLanguage mode" | WDAC / AppLocker | Check with your security team. The tool does not bypass anything. |
+| "… is not digitally signed" / "cannot be loaded" | Files marked as downloaded | Run `Installer.cmd` again (it unblocks them), or `Get-ChildItem -Recurse -File \| Unblock-File` |
+| `Installer.cmd`: "Execution policy AllSigned / Restricted" | Policy enforced by your organization | Check with your IT department: the tool does not bypass it |
+| "Microsoft.Graph.Authentication module not found" | Module missing | Run `Installer.cmd` again, or `Install-Module Microsoft.Graph.Authentication -Scope CurrentUser` |
+| "Need admin approval" at sign-in | The tenant has not consented to the read permissions yet (§5) | Ask an Entra administrator to accept them once for the organization |
+| "Cannot listen on 127.0.0.1:…" | Port in use | Start again (random port) or use `-Port <other>` |
+| Edge does not open | Edge not found | Start with `-NoBrowser` and open the address shown |
+| "Invalid session" in the page | Page reloaded (`F5`) or tool restarted | Close the tab; the tool reopens Edge with a new link at every launch |
+| "Server stopped" in the page | PowerShell console closed or `Ctrl+C` | Start the tool again |
+| Orange pill "Microsoft is throttling requests" | Graph throttling (HTTP 429) | Nothing to do: it resumes automatically, respecting the delay requested by Microsoft |
+| Console "Fallback: foreground sync" | The background sync cannot see the Graph session: automatic switch | Nothing to do. The interface does not respond during a sync. Please open an issue on GitHub. |
+| Log "Assignments unreadable … (HTTP 4xx)" | Unexpected endpoint or permission | Open an issue on GitHub with the line (type and HTTP code) |
+| Remediations / Autopilot / ESP missing | Permission outside the requested scopes | See §5 and the status pill menu ("can be enabled with …") |
+| Log "Cache unreadable or corrupted: ignored" | Damaged file or from another version | Nothing to do: a full sync replaces it |
 
 ## 9. Tests
 
@@ -189,33 +191,35 @@ L'outil demande **uniquement** ces 5 permissions déléguées de **lecture** :
 pwsh -File .\tests\Run-Tests.ps1
 ```
 
-Suite autonome, en mode Mock, sans réseau sortant. Elle couvre :
-- le garde-fou lecture seule, la collecte (pagination, 429, 5xx), l'inventaire Graph ;
-- l'index, la recherche, la synchronisation incrémentale, le cache (coupure simulée) ;
-- le serveur local et les contrôles statiques de la spec §9.2.
+A self-contained suite, in Mock mode, with no outgoing network. It covers:
+- the read-only guard, data collection (paging, 429, 5xx), the Graph inventory;
+- the index, search, incremental sync, the cache (simulated power cut);
+- the local server, saved settings, and static checks (no forbidden commands, no external resources).
 
-Si Node.js est présent, la syntaxe JavaScript et la logique de l'interface sont aussi vérifiées. La checklist de test manuel dans Edge se trouve dans [docs/test-manuel.md](docs/test-manuel.md).
+If Node.js is installed, the JavaScript syntax and the interface logic are also checked, in both languages. The manual test checklist for Edge is in [docs/test-manuel.md](docs/test-manuel.md) (in French).
 
 ## 10. Documentation
 
-| Fichier | Contenu |
+The detailed documents are in French.
+
+| File | Content |
 |---|---|
-| [docs/guide-lecture.md](docs/guide-lecture.md) | Comment lire l'interface |
-| [docs/test-manuel.md](docs/test-manuel.md) | Checklist de test dans Edge |
-| [docs/verifications.md](docs/verifications.md) | Points vérifiés, inventaire Graph avec sources |
-| [docs/decisions.md](docs/decisions.md) | Choix techniques et leurs raisons |
-| [docs/performance.md](docs/performance.md) | Mesures par rapport aux budgets de la spec |
+| [docs/guide-lecture.md](docs/guide-lecture.md) | How to read the interface |
+| [docs/test-manuel.md](docs/test-manuel.md) | Manual test checklist in Edge |
+| [docs/verifications.md](docs/verifications.md) | Verified points, Graph inventory with sources |
+| [docs/decisions.md](docs/decisions.md) | Technical choices and their reasons |
+| [docs/performance.md](docs/performance.md) | Measurements against the performance budgets |
 
 ## 11. Structure
 
 ```
-Installer.cmd                installation en un double-clic (raccourci, module Graph)
-Start-IntuneAssignLens.ps1   point d'entrée (lancé par le raccourci)
-setup/    Install-IntuneLens.ps1 : appelé par Installer.cmd ; -Uninstall pour désinstaller
-src/      Config, Log, GraphClient (seul accès réseau + garde-fou), Collectors, Index, Cache, Sync, Server
-web/      interface (HTML/CSS/JS natifs, sans build, verre 100 % CSS) ; web/img/logo.svg = icône de l'onglet
-assets/   intune-lens.ico : logo du raccourci Windows (16 à 256 px)
-mock/     générateur de données fictives déterministe + fixtures
-tests/    Run-Tests.ps1 (PowerShell) + tests/web (Node, optionnel)
-docs/     documentation
+Installer.cmd                one-double-click setup (shortcut, Graph module)
+Start-IntuneAssignLens.ps1   entry point (started by the shortcut)
+setup/    Install-IntuneLens.ps1: called by Installer.cmd; -Uninstall to uninstall
+src/      Config, Log, GraphClient (only network access + guard), Collectors, Index, Cache, Sync, Server
+web/      interface (plain HTML/CSS/JS, no build step); web/js/i18n.js = English / French texts
+assets/   intune-lens.ico: Windows shortcut logo (16 to 256 px)
+mock/     deterministic fictitious data generator + fixtures
+tests/    Run-Tests.ps1 (PowerShell) + tests/web (Node, optional)
+docs/     documentation (French)
 ```

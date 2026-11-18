@@ -1,14 +1,26 @@
-// api.js : appels vers le serveur LOCAL uniquement (même origine).
-// Le jeton de session arrive dans le fragment d'URL (#s=…), est retiré aussitôt de la barre d'adresse
-// et n'est conservé qu'en mémoire (spec 5.8). Recharger la page impose donc de relancer l'outil.
+// api.js : calls to the LOCAL server only (same origin).
+// The session token arrives in the URL fragment (#s=…), is removed from the address bar at once
+// and only kept in memory (spec 5.8). A manual reload therefore requires restarting the tool;
+// reloadWithSession() is the one controlled exception (language change).
+import { L, tx } from './i18n.js';
 
 let token = '';
 
 export function captureToken() {
   const params = new URLSearchParams(location.hash.slice(1));
   token = params.get('s') || '';
-  if (params.has('s')) history.replaceState(null, '', location.pathname);
+  const go = params.get('go');   // screen to reopen after reloadWithSession()
+  if (params.has('s')) history.replaceState(null, '', location.pathname + (go && /^\/[\w/%.-]*$/.test(go) ? `#${go}` : ''));
   return token !== '';
+}
+
+/** Reloads the page while keeping the session (same form as the launch URL), back on the current screen. */
+export function reloadWithSession() {
+  const route = location.hash.startsWith('#/') ? location.hash.slice(1) : '';
+  const params = new URLSearchParams({ s: token });
+  if (route) params.set('go', route);
+  location.replace(`${location.pathname}#${params.toString()}`);
+  location.reload();
 }
 
 export class ApiError extends Error {
@@ -34,12 +46,12 @@ async function request(method, path, body, signal) {
     });
   } catch (e) {
     if (e && e.name === 'AbortError') throw e;
-    throw new ApiError('network', 0, 'Serveur injoignable.');
+    throw new ApiError('network', 0, L('Serveur injoignable.', 'Server unreachable.'));
   }
   let data = null;
   try { data = await res.json(); } catch { data = null; }
-  if (res.status === 401) throw new ApiError('session', 401, (data && data.error) || 'Session invalide.');
-  if (!res.ok) throw new ApiError('http', res.status, (data && data.error) || `Erreur HTTP ${res.status}.`);
+  if (res.status === 401) throw new ApiError('session', 401, tx(data && data.error) || L('Session invalide.', 'Invalid session.'));
+  if (!res.ok) throw new ApiError('http', res.status, tx(data && data.error) || L(`Erreur HTTP ${res.status}.`, `HTTP error ${res.status}.`));
   return data;
 }
 
@@ -56,4 +68,6 @@ export const api = {
   refresh: (mode) => request('POST', '/api/refresh', { mode }),
   clearCache: () => request('POST', '/api/cache/clear', {}),
   shutdown: () => request('POST', '/api/shutdown', {}),
+  /** Saved settings (language, theme), kept by the server across launches. */
+  setPrefs: (prefs) => request('POST', '/api/prefs', prefs),
 };

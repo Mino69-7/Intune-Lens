@@ -196,7 +196,7 @@ function Invoke-GraphRead {
                 $script:IalGraph.Stats.Throttled++
                 if ($script:IalGraph.Status) { $script:IalGraph.Status['ThrottledUntil'] = (Get-Date).AddSeconds($wait).ToString('o') }
             }
-            Write-IalLog -Level WARN -Message ("Graph HTTP {0}, nouvelle tentative {1}/{2} dans {3:0.#} s" -f $code, ($attempt + 1), $script:IalConfig.MaxRetries, $wait)
+            Write-IalLog -Level WARN -Message ((Tx 'Graph HTTP {0}, nouvelle tentative {1}/{2} dans {3:0.#} s' 'Graph HTTP {0}, retry {1}/{2} in {3:0.#} s') -f $code, ($attempt + 1), $script:IalConfig.MaxRetries, $wait)
             & $script:IalGraph.Sleep $wait
             continue
         }
@@ -290,7 +290,7 @@ function Invoke-GraphBatch {
                 }
                 $script:IalGraph.Stats.Retries++
                 if ($maxWait -le 0) { $maxWait = Get-IalRetryAfterSeconds -Headers $null -Attempt $attempt }
-                Write-IalLog -Level WARN -Message ("`$batch : {0} sous-requête(s) à retenter dans {1:0.#} s" -f $retry.Count, $maxWait)
+                Write-IalLog -Level WARN -Message ((Tx '$batch : {0} sous-requête(s) à retenter dans {1:0.#} s' '$batch: {0} sub-request(s) to retry in {1:0.#} s') -f $retry.Count, $maxWait)
                 & $script:IalGraph.Sleep $maxWait
             }
             $pending = $retry
@@ -514,7 +514,7 @@ function Connect-IalGraph {
     [CmdletBinding()]
     param([string]$TenantId)
     if (-not (Get-Module -ListAvailable -Name 'Microsoft.Graph.Authentication')) {
-        throw "Le module Microsoft.Graph.Authentication est absent. Installez-le vous-même ; l'outil n'installe rien."
+        throw (Tx "Le module Microsoft.Graph.Authentication est absent. Relancez Installer.cmd ou installez-le vous-même." "The Microsoft.Graph.Authentication module is missing. Run Installer.cmd again or install it yourself.")
     }
     Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
     # 4 scopes de base + Device.Read.All (groupes des machines, accord de l'utilisateur). Tous en LECTURE.
@@ -525,7 +525,7 @@ function Connect-IalGraph {
         # Consentement refusé ou soumis à approbation pour Device.Read.All : repli sur les 4 scopes de base
         # (déjà consentis). L'outil fonctionne, seuls les groupes des machines manquent.
         if ($_.Exception.Message -notmatch 'AADSTS(65001|65004|90094|90008)|consent|approval|approbation') { throw }
-        Write-IalLog -Level WARN -Message "Permission $($script:IalConfig.DeviceScope) non accordée : connexion avec les 4 permissions de base (groupes des machines indisponibles)."
+        Write-IalLog -Level WARN -Message (Tx "Permission $($script:IalConfig.DeviceScope) non accordée : connexion avec les 4 permissions de base (groupes des machines indisponibles)." "Permission $($script:IalConfig.DeviceScope) not granted: signing in with the 4 base permissions (device groups unavailable).")
         $p.Scopes = $script:IalConfig.Scopes
         Connect-MgGraph @p
     }
@@ -533,7 +533,7 @@ function Connect-IalGraph {
     $ctx = Get-MgContext
     $extra = @($ctx.Scopes | Where-Object { $_ -notin (Get-IalConnectScopes) })
     if ($extra.Count -gt 0) {
-        Write-IalLog -Level WARN -Message ("Le jeton contient {0} scope(s) au-delà de ceux demandés (consentement préexistant). L'outil reste en lecture seule par construction." -f $extra.Count)
+        Write-IalLog -Level WARN -Message ((Tx 'Le jeton contient {0} scope(s) au-delà de ceux demandés (consentement préexistant). L''outil reste en lecture seule par construction.' 'The Graph sign-in grants {0} scope(s) beyond those requested (existing consent). The tool stays read-only by design.') -f $extra.Count)
     }
 }
 

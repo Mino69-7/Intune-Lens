@@ -7,7 +7,7 @@ import {
   asArray, buildGroupRows, buildObjectRows, familyCounts, groupExport, objectExport,
   statusText, toCsv, toTsv, safeFileName,
 } from './model.js';
-import { fmt, typeLabel, T } from '../i18n.fr.js';
+import { fmt, typeLabel, familyLabel, T, L, tx } from '../i18n.js';
 import {
   compareGroups, compareObjects, compareProfiles, compareCounts, buildCompareRows, compareExport, GAP_LABEL, sideDetail,
 } from './compare.js';
@@ -28,10 +28,10 @@ function badge(modeKey) {
   return h('span', { class: `badge ${cls}` }, [icon(ic), statusText(modeKey)]);
 }
 
-function copyBtn(value, label = 'Copier') {
+function copyBtn(value, label = L('Copier', 'Copy')) {
   return h('button', {
-    type: 'button', class: 'copy-btn', 'aria-label': `${label} l'identifiant`,
-    on: { click: (e) => { e.stopPropagation(); copyText(value, 'Identifiant copié'); } },
+    type: 'button', class: 'copy-btn', 'aria-label': L(`${label} l'identifiant`, `${label} the identifier`),
+    on: { click: (e) => { e.stopPropagation(); copyText(value, L('Identifiant copié', 'Identifier copied')); } },
   }, [label]);
 }
 
@@ -40,66 +40,66 @@ const deviceIcon = (platform) => (platform === 'iOS' || platform === 'Android' ?
 /** Pastille d'appareil : icône, nom ; estompée si inactif, barrée d'un cercle si exclu. */
 function devicePill(t) {
   const cls = `dev-pill${t.mode === 'exclude' ? ' is-excluded' : ''}${t.stale ? ' is-stale' : ''}`;
-  const title = `${t.deviceName}${t.mode === 'exclude' ? ' : exclu' : ''}${t.stale ? ' (inactif)' : ''}`;
+  const title = `${t.deviceName}${t.mode === 'exclude' ? L(' : exclu', ': excluded') : ''}${t.stale ? L(' (inactif)', ' (inactive)') : ''}`;
   return h('span', { class: cls, title }, [icon(t.mode === 'exclude' ? 'ban' : deviceIcon(t.platform)), h('span', { class: 'dev-name', text: t.deviceName })]);
 }
 function devicePills(r) {
-  if (r.allDevices && r.targets.length > 1) return h('span', { class: 'dev-pills' }, [h('span', { class: 'dev-pill is-all' }, [icon('laptop'), h('span', { class: 'dev-name', text: 'Tous ses appareils' })])]);
+  if (r.allDevices && r.targets.length > 1) return h('span', { class: 'dev-pills' }, [h('span', { class: 'dev-pill is-all' }, [icon('laptop'), h('span', { class: 'dev-name', text: L('Tous ses appareils', 'All their devices') })])]);
   const named = r.targets.filter((t) => t.deviceName);
-  if (!named.length) return h('span', { class: 'muted', text: 'Sans appareil' });
+  if (!named.length) return h('span', { class: 'muted', text: L('Sans appareil', 'No device') });
   return h('span', { class: 'dev-pills' }, named.map(devicePill));
 }
 
 const GROUP_COLUMNS = [
-  { key: 'name', label: 'Nom', width: 'minmax(200px, 2.4fr)', render: (r) => h('span', {}, [r.name, r.platform ? h('span', { class: 'sub', text: r.platform }) : null]) },
+  { key: 'name', label: L('Nom', 'Name'), width: 'minmax(200px, 2.4fr)', render: (r) => h('span', {}, [r.name, r.platform ? h('span', { class: 'sub', text: r.platform }) : null]) },
   { key: 'type', label: 'Type', width: 'minmax(110px, 1.3fr)', render: (r) => r.typeLabel },
-  { key: 'status', label: 'Statut', width: '112px', render: (r) => badge(r.modeKey) },
+  { key: 'status', label: L('Statut', 'Status'), width: '112px', render: (r) => badge(r.modeKey) },
   { key: 'via', label: 'Via', width: 'minmax(110px, 1fr)', render: (r) => r.viaText },
   { key: 'intent', label: 'Intent', width: 'minmax(80px, 0.9fr)', render: (r) => r.intentText || '—' },
-  { key: 'filter', label: 'Filtre', width: 'minmax(110px, 1.3fr)', render: (r) => r.filterText || '—' },
+  { key: 'filter', label: L('Filtre', 'Filter'), width: 'minmax(110px, 1.3fr)', render: (r) => r.filterText || '—' },
 ];
 
 const OBJECT_COLUMNS = [
   {
-    key: 'name', label: 'Cible', width: 'minmax(220px, 2.6fr)',
+    key: 'name', label: L('Cible', 'Target'), width: 'minmax(220px, 2.6fr)',
     render: (r) => h('span', {}, [
       r.name,
-      r.kind === 'group' && !r.groupExists ? h('span', { class: 'sub tag-deleted', text: 'Groupe supprimé dans Entra' }) : null,
+      r.kind === 'group' && !r.groupExists ? h('span', { class: 'sub tag-deleted', text: L('Groupe supprimé dans Entra', 'Group deleted in Entra') }) : null,
       r.kind === 'group' && r.groupExists ? h('span', { class: 'sub mono', text: r.groupId }) : null,
     ]),
   },
-  { key: 'status', label: 'Statut', width: '112px', render: (r) => badge(r.modeKey) },
+  { key: 'status', label: L('Statut', 'Status'), width: '112px', render: (r) => badge(r.modeKey) },
   { key: 'via', label: 'Via', width: 'minmax(120px, 1fr)', render: (r) => r.viaText },
   { key: 'intent', label: 'Intent', width: 'minmax(90px, 0.9fr)', render: (r) => r.intentText || '—' },
-  { key: 'filter', label: 'Filtre', width: 'minmax(120px, 1.3fr)', render: (r) => r.filterText || '—' },
+  { key: 'filter', label: L('Filtre', 'Filter'), width: 'minmax(120px, 1.3fr)', render: (r) => r.filterText || '—' },
 ];
 
 /** Fiche Utilisateur (withDevices) ou Machine : éléments ciblés. */
 function configColumns(withDevices) {
   return [
-    { key: 'name', label: 'Nom', width: 'minmax(200px, 2.2fr)', render: (r) => h('span', {}, [r.name, h('span', { class: 'sub', text: [r.typeLabel, r.platform].filter(Boolean).join(' · ') })]) },
-    { key: 'status', label: 'Statut', width: '112px', render: (r) => badge(r.modeKey) },
+    { key: 'name', label: L('Nom', 'Name'), width: 'minmax(200px, 2.2fr)', render: (r) => h('span', {}, [r.name, h('span', { class: 'sub', text: [r.typeLabel, r.platform].filter(Boolean).join(' · ') })]) },
+    { key: 'status', label: L('Statut', 'Status'), width: '112px', render: (r) => badge(r.modeKey) },
     withDevices
-      ? { key: 'devices', label: 'Appareils', width: 'minmax(150px, 1.5fr)', render: devicePills }
-      : { key: 'scope', label: 'Ciblage', width: 'minmax(110px, 1fr)', render: (r) => r.scopeText },
+      ? { key: 'devices', label: L('Appareils', 'Devices'), width: 'minmax(150px, 1.5fr)', render: devicePills }
+      : { key: 'scope', label: L('Ciblage', 'Targeting'), width: 'minmax(110px, 1fr)', render: (r) => r.scopeText },
     { key: 'via', label: 'Via', width: 'minmax(150px, 1.6fr)', render: (r) => r.viaText || '—' },
-    { key: 'detail', label: 'Détail', width: 'minmax(100px, 1fr)', render: (r) => [r.intentText, r.filterText ? `Filtre : ${r.filterText}` : ''].filter(Boolean).join(' · ') || '—' },
+    { key: 'detail', label: L('Détail', 'Details'), width: 'minmax(100px, 1fr)', render: (r) => [r.intentText, r.filterText ? L(`Filtre : ${r.filterText}`, `Filter: ${r.filterText}`) : ''].filter(Boolean).join(' · ') || '—' },
   ];
 }
 const GROUP_LIST_COLUMNS = [
-  { key: 'name', label: 'Groupe', width: 'minmax(220px, 2.6fr)', render: (r) => h('span', {}, [r.name, h('span', { class: 'sub mono', text: r.groupId })]) },
-  { key: 'used', label: 'Dans Intune', width: 'minmax(150px, 1fr)', render: (r) => (r.used ? h('span', { class: 'badge badge-include' }, [r.usedText]) : h('span', { class: 'muted', text: r.usedText })) },
+  { key: 'name', label: L('Groupe', 'Group'), width: 'minmax(220px, 2.6fr)', render: (r) => h('span', {}, [r.name, h('span', { class: 'sub mono', text: r.groupId })]) },
+  { key: 'used', label: L('Dans Intune', 'In Intune'), width: 'minmax(150px, 1fr)', render: (r) => (r.used ? h('span', { class: 'badge badge-include' }, [r.usedText]) : h('span', { class: 'muted', text: r.usedText })) },
 ];
 const DEVICE_COLUMNS = [
-  { key: 'name', label: 'Appareil', width: 'minmax(180px, 1.8fr)', render: (r) => h('span', {}, [r.name, h('span', { class: 'sub', text: r.modelText || r.raw.serial || '' })]) },
-  { key: 'os', label: 'Système', width: 'minmax(120px, 1.2fr)', render: (r) => r.osText || '—' },
-  { key: 'sync', label: 'Dernière synchro', width: 'minmax(140px, 1.1fr)', render: (r) => h('span', { class: 'dev-sync' }, [r.syncText, r.stale ? h('span', { class: 'badge badge-neutral', text: 'Inactif' }) : null]) },
-  { key: 'compliance', label: 'Conformité', width: 'minmax(110px, 1fr)', render: (r) => r.complianceText },
+  { key: 'name', label: L('Appareil', 'Device'), width: 'minmax(180px, 1.8fr)', render: (r) => h('span', {}, [r.name, h('span', { class: 'sub', text: r.modelText || r.raw.serial || '' })]) },
+  { key: 'os', label: L('Système', 'OS'), width: 'minmax(120px, 1.2fr)', render: (r) => r.osText || '—' },
+  { key: 'sync', label: L('Dernière synchro', 'Last sync'), width: 'minmax(140px, 1.1fr)', render: (r) => h('span', { class: 'dev-sync' }, [r.syncText, r.stale ? h('span', { class: 'badge badge-neutral', text: L('Inactif', 'Inactive') }) : null]) },
+  { key: 'compliance', label: L('Conformité', 'Compliance'), width: 'minmax(110px, 1fr)', render: (r) => r.complianceText },
 ];
 
 /** Cellule d'un côté de la comparaison : statut + détail (intent, filtre), ou « Absent ». */
 function sideCell(sd) {
-  if (!sd) return h('span', { class: 'cmp-absent', text: 'Absent' });
+  if (!sd) return h('span', { class: 'cmp-absent', text: L('Absent', 'Missing') });
   const detail = sideDetail(sd);
   return h('span', { class: 'cmp-cell' }, [badge(sd.mode), detail ? h('span', { class: 'sub', text: detail }) : null]);
 }
@@ -108,20 +108,20 @@ function gapBadge(gap) {
 }
 function compareColumns(nameA, nameB) {
   return [
-    { key: 'name', label: 'Nom', width: 'minmax(180px, 2fr)', render: (r) => h('span', {}, [r.name, h('span', { class: 'sub', text: [r.typeLabel, r.platform].filter(Boolean).join(' · ') })]) },
+    { key: 'name', label: L('Nom', 'Name'), width: 'minmax(180px, 2fr)', render: (r) => h('span', {}, [r.name, h('span', { class: 'sub', text: [r.typeLabel, r.platform].filter(Boolean).join(' · ') })]) },
     { key: 'side-a', label: `A · ${nameA}`, width: 'minmax(132px, 1.2fr)', render: (r) => sideCell(r.a) },
     { key: 'side-b', label: `B · ${nameB}`, width: 'minmax(132px, 1.2fr)', render: (r) => sideCell(r.b) },
-    { key: 'gap', label: 'Écart', width: '112px', render: (r) => gapBadge(r.gap) },
+    { key: 'gap', label: L('Écart', 'Difference'), width: '112px', render: (r) => gapBadge(r.gap) },
   ];
 }
 
 /** Nom, identifiant, nombre d'éléments et libellés d'une fiche, quel que soit son type. */
 function describe(kind, view) {
   switch (kind) {
-    case 'group': return { id: view.group.id, name: view.group.name, count: asArray(view.items).length, kicker: 'Groupe Entra', unit: ['élément assigné', 'éléments assignés'], what: 'ces deux groupes' };
-    case 'object': return { id: view.object.id, name: view.object.name, count: asArray(view.assignments).length, kicker: view.object.family || 'Configuration', unit: ['cible', 'cibles'], what: 'ces deux éléments' };
-    case 'user': return { id: view.user.id, name: view.user.name, count: asArray(view.configs).length, kicker: 'Utilisateur', unit: ['élément ciblé', 'éléments ciblés'], what: 'ces deux utilisateurs' };
-    default: return { id: view.device.id, name: view.device.name, count: asArray(view.configs).length, kicker: 'Machine', unit: ['élément ciblé', 'éléments ciblés'], what: 'ces deux machines' };
+    case 'group': return { id: view.group.id, name: view.group.name, count: asArray(view.items).length, kicker: T.kindLabel.group, unit: [L('élément assigné', 'assigned item'), L('éléments assignés', 'assigned items')], what: L('ces deux groupes', 'these two groups') };
+    case 'object': return { id: view.object.id, name: view.object.name, count: asArray(view.assignments).length, kicker: familyLabel(view.object.family) || 'Configuration', unit: [L('cible', 'target'), L('cibles', 'targets')], what: L('ces deux éléments', 'these two items') };
+    case 'user': return { id: view.user.id, name: view.user.name, count: asArray(view.configs).length, kicker: T.kindLabel.user, unit: [L('élément ciblé', 'targeted item'), L('éléments ciblés', 'targeted items')], what: L('ces deux utilisateurs', 'these two users') };
+    default: return { id: view.device.id, name: view.device.name, count: asArray(view.configs).length, kicker: T.kindLabel.device, unit: [L('élément ciblé', 'targeted item'), L('éléments ciblés', 'targeted items')], what: L('ces deux machines', 'these two devices') };
   }
 }
 export function viewName(kind, view) { return describe(kind, view).name; }
@@ -172,7 +172,7 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     empty.replaceChildren(h('h3', { text: title }), text ? h('p', { text }) : null, button || null);
     empty.hidden = false;
   }
-  const resetButton = () => h('button', { type: 'button', class: 'btn', text: 'Réinitialiser les filtres', on: { click: () => { resetFilters(); refresh(); } } });
+  const resetButton = () => h('button', { type: 'button', class: 'btn', text: L('Réinitialiser les filtres', 'Reset filters'), on: { click: () => { resetFilters(); refresh(); } } });
 
   function refreshProfile(keepFocus) {
     const v = ctx.view;
@@ -193,10 +193,12 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     renderSummary();
     $('empty').hidden = true;
     const filtered = filters.text || filters.mode || filters.device;
-    if (rows.length === 0 && filtered) showEmpty('Aucun résultat avec ces filtres', '', resetButton());
-    else if (rows.length === 0 && ctx.tab === 'groups') showEmpty('Aucun groupe', asArray(v.warnings).length ? 'Les groupes n\'ont pas pu être lus (voir ci-dessus).' : 'Membre d\'aucun groupe Entra.');
-    else if (rows.length === 0 && ctx.tab === 'devices') showEmpty('Aucun appareil', 'Aucun appareil géré par Intune pour cet utilisateur.');
-    else if (rows.length === 0) showEmpty('Aucun élément ciblé', 'Aucune configuration, application ou stratégie ne cible ' + (ctx.kind === 'user' ? 'cet utilisateur ni ses appareils.' : 'cette machine ni son utilisateur.'));
+    if (rows.length === 0 && filtered) showEmpty(L('Aucun résultat avec ces filtres', 'No results with these filters'), '', resetButton());
+    else if (rows.length === 0 && ctx.tab === 'groups') showEmpty(L('Aucun groupe', 'No groups'), asArray(v.warnings).length ? L('Les groupes n\'ont pas pu être lus (voir ci-dessus).', 'The groups could not be read (see above).') : L('Membre d\'aucun groupe Entra.', 'Not a member of any Entra group.'));
+    else if (rows.length === 0 && ctx.tab === 'devices') showEmpty(L('Aucun appareil', 'No devices'), L('Aucun appareil géré par Intune pour cet utilisateur.', 'No Intune-managed device for this user.'));
+    else if (rows.length === 0) showEmpty(L('Aucun élément ciblé', 'Nothing targeted'), ctx.kind === 'user'
+      ? L('Aucune configuration, application ou stratégie ne cible cet utilisateur ni ses appareils.', 'No configuration, app or policy targets this user or their devices.')
+      : L('Aucune configuration, application ou stratégie ne cible cette machine ni son utilisateur.', 'No configuration, app or policy targets this device or its user.'));
   }
 
   function refresh({ keepFocus = false } = {}) {
@@ -212,15 +214,15 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     $('empty').hidden = true;
     const filtered = filters.text || filters.mode || filters.via || filters.families.size;
     if (ctx.kind === 'compare' && ctx.cmp.length === 0) {
-      showEmpty('Rien à comparer', `Aucune assignation pour ${ctx.what}.`);
+      showEmpty(L('Rien à comparer', 'Nothing to compare'), L(`Aucune assignation pour ${ctx.what}.`, `No assignments for ${ctx.what}.`));
     } else if (ctx.kind === 'compare' && filters.show === 'gaps' && rows.length === 0 && !filters.text) {
-      showEmpty('Aucun écart', `${ctx.what.charAt(0).toUpperCase()}${ctx.what.slice(1)} ont exactement les mêmes assignations.`);
+      showEmpty(L('Aucun écart', 'No differences'), L(`${ctx.what.charAt(0).toUpperCase()}${ctx.what.slice(1)} ont exactement les mêmes assignations.`, `${ctx.what.charAt(0).toUpperCase()}${ctx.what.slice(1)} have exactly the same assignments.`));
     } else if (ctx.kind === 'group' && asArray(ctx.view.items).length === 0 && !filtered) {
-      showEmpty('Aucune assignation directe', "Aucune configuration, application ou stratégie n'est assignée directement à ce groupe. Les assignations globales (indicatives) restent listées ci-dessous.");
+      showEmpty(L('Aucune assignation directe', 'No direct assignments'), L("Aucune configuration, application ou stratégie n'est assignée directement à ce groupe. Les assignations globales (indicatives) restent listées ci-dessous.", 'No configuration, app or policy is assigned directly to this group. Global assignments (for information) are still listed below.'));
     } else if (ctx.kind === 'object' && ctx.view.unassigned) {
-      showEmpty('Aucune assignation', "Cet élément n'est assigné à aucun groupe ni à aucune cible globale (orphelin potentiel).");
+      showEmpty(L('Aucune assignation', 'No assignments'), L("Cet élément n'est assigné à aucun groupe ni à aucune cible globale (orphelin potentiel).", 'This item is not assigned to any group or global target (possibly orphaned).'));
     } else if (rows.length === 0) {
-      showEmpty('Aucun résultat avec ces filtres', '', resetButton());
+      showEmpty(L('Aucun résultat avec ces filtres', 'No results with these filters'), '', resetButton());
     }
     recapture(scroller);   // le contenu derrière les verres a changé
   }
@@ -246,12 +248,12 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     const first = (p.page - 1) * 20 + 1;
     const last = Math.min(p.total, p.page * 20);
     nav.replaceChildren(
-      btn(icon('chevronLeft'), p.page - 1, { 'aria-label': 'Page précédente', disabled: p.page <= 1 }),
+      btn(icon('chevronLeft'), p.page - 1, { 'aria-label': L('Page précédente', 'Previous page'), disabled: p.page <= 1 }),
       ...pageList(p.page, p.pages).map((n) => (n === null
         ? h('span', { class: 'pager-gap', 'aria-hidden': 'true', text: '…' })
         : btn(String(n), n, { 'aria-label': `Page ${n}`, 'aria-current': n === p.page ? 'page' : null }))),
-      btn(icon('chevronRight'), p.page + 1, { 'aria-label': 'Page suivante', disabled: p.page >= p.pages }),
-      h('span', { class: 'pager-info', text: `${fmt.num(first)}–${fmt.num(last)} sur ${fmt.num(p.total)}` }),
+      btn(icon('chevronRight'), p.page + 1, { 'aria-label': L('Page suivante', 'Next page'), disabled: p.page >= p.pages }),
+      h('span', { class: 'pager-info', text: L(`${fmt.num(first)}–${fmt.num(last)} sur ${fmt.num(p.total)}`, `${fmt.num(first)}–${fmt.num(last)} of ${fmt.num(p.total)}`) }),
     );
     nav.hidden = false;
   }
@@ -267,23 +269,23 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     if (ctx.kind === 'compare') {
       // Filtre à choix unique, sous forme de pastilles (même style que le bandeau par famille).
       const c = compareCounts(ctx.cmp);
-      const defs = [['all', 'Tous'], ['gaps', 'Écarts'], ['onlyA', 'Seulement A'], ['onlyB', 'Seulement B'], ['diff', 'Différents'], ['same', 'Identiques']];
+      const defs = [['all', L('Tous', 'All')], ['gaps', L('Écarts', 'Differences')], ['onlyA', L('Seulement A', 'Only A')], ['onlyB', L('Seulement B', 'Only B')], ['diff', L('Différents', 'Different')], ['same', L('Identiques', 'Identical')]];
       box.replaceChildren(...defs.map(([k, l]) => chip(filters.show === k, l, c[k], () => { filters.show = k; refresh(); })));
       return;
     }
     if (isProfile(ctx.kind)) {
       // Onglets de la fiche : Configurations · Groupes · Appareils
       const v = ctx.view;
-      const tabs = [['configs', 'Configurations', asArray(v.configs).length], ['groups', 'Groupes', asArray(v.groups).length]];
-      if (ctx.kind === 'user') tabs.push(['devices', 'Appareils', asArray(v.devices).length]);
+      const tabs = [['configs', 'Configurations', asArray(v.configs).length], ['groups', L('Groupes', 'Groups'), asArray(v.groups).length]];
+      if (ctx.kind === 'user') tabs.push(['devices', L('Appareils', 'Devices'), asArray(v.devices).length]);
       box.replaceChildren(...tabs.map(([k, l, n]) => chip(ctx.tab === k, l, n, () => setTab(k))));
       return;
     }
     if (ctx.kind !== 'group') { box.replaceChildren(); return; }
-    box.replaceChildren(...familyCounts(ctx.view).map(([fam, n]) => chip(filters.families.has(fam), fam, n, () => {
+    box.replaceChildren(...familyCounts(ctx.view).map(([fam, n]) => chip(filters.families.has(fam), familyLabel(fam), n, () => {
       if (filters.families.has(fam)) filters.families.delete(fam); else filters.families.add(fam);
       refresh();
-    }, `Filtrer : ${fam}`)));
+    }, L(`Filtrer : ${familyLabel(fam)}`, `Filter: ${familyLabel(fam)}`))));
   }
 
   function renderNotes(status) {
@@ -291,20 +293,20 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     const unc = asArray(status?.uncovered);
     if (unc.length) {
       notes.push(h('div', { class: 'notes-box surface', role: 'note' }, [
-        h('strong', { text: 'Non couvert (permission non consentie) : ' }),
-        unc.map((u) => u.family).join(', '),
-        '. Les assignations de ces types n\'apparaissent pas ici.',
+        h('strong', { text: L('Non couvert (permission non consentie) : ', 'Not covered (permission not granted): ') }),
+        unc.map((u) => familyLabel(u.family)).join(', '),
+        L('. Les assignations de ces types n\'apparaissent pas ici.', '. Assignments of these types are not shown here.'),
       ]));
     }
     if (ctx.kind === 'group' && ctx.view.group && ctx.view.group.exists === false) {
       notes.push(h('div', { class: 'notes-box surface', role: 'note' }, [
-        h('strong', { text: 'Groupe supprimé dans Entra. ' }),
-        'Il est encore référencé par des assignations : elles ne s\'appliquent plus à personne.',
+        h('strong', { text: L('Groupe supprimé dans Entra. ', 'Group deleted in Entra. ') }),
+        L('Il est encore référencé par des assignations : elles ne s\'appliquent plus à personne.', 'It is still referenced by assignments: they no longer apply to anyone.'),
       ]));
     }
     if (isProfile(ctx.kind)) {
       const w = asArray(ctx.view.warnings);
-      if (w.length) notes.push(h('div', { class: 'notes-box surface', role: 'note' }, [h('strong', { text: 'Données partielles : ' }), w.join(' · ')]));
+      if (w.length) notes.push(h('div', { class: 'notes-box surface', role: 'note' }, [h('strong', { text: L('Données partielles : ', 'Partial data: ') }), w.map(tx).join(' · ')]));
       notes.push(h('div', { class: 'notes-box surface', role: 'note' }, [T.targetingNote]));
     }
     $('notes').replaceChildren(...notes);
@@ -331,19 +333,19 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
 
   function linkButton(kind, id) {
     return h('button', {
-      type: 'button', class: 'btn', text: 'Copier le lien',
-      title: 'Lien à envoyer à un collègue : il le colle (Ctrl+V) dans son Intune Lens pour ouvrir cette fiche',
-      on: { click: () => copyText(shareLink(kind, id), 'Lien copié : à coller (Ctrl+V) dans Intune Lens pour ouvrir cette fiche.') },
+      type: 'button', class: 'btn', text: L('Copier le lien', 'Copy link'),
+      title: L('Lien à envoyer à un collègue : il le colle (Ctrl+V) dans son Intune Lens pour ouvrir cette fiche', 'Link to send to a colleague: they paste it (Ctrl+V) into their Intune Lens to open this page'),
+      on: { click: () => copyText(shareLink(kind, id), L('Lien copié : à coller (Ctrl+V) dans Intune Lens pour ouvrir cette fiche.', 'Link copied: paste it (Ctrl+V) into Intune Lens to open this page.')) },
     });
   }
 
   function compareButton(kind, id, name) {
     const titles = {
-      group: 'Comparer ce groupe avec un autre groupe', object: 'Comparer avec une autre configuration',
-      user: 'Comparer avec un autre utilisateur', device: 'Comparer avec une autre machine',
+      group: L('Comparer ce groupe avec un autre groupe', 'Compare this group with another group'), object: L('Comparer avec une autre configuration', 'Compare with another configuration'),
+      user: L('Comparer avec un autre utilisateur', 'Compare with another user'), device: L('Comparer avec une autre machine', 'Compare with another device'),
     };
     return h('button', {
-      type: 'button', class: 'btn btn-primary', text: 'Comparer', title: titles[kind],
+      type: 'button', class: 'btn btn-primary', text: L('Comparer', 'Compare'), title: titles[kind],
       on: { click: () => onCompare?.(kind, id, name) },
     });
   }
@@ -354,17 +356,17 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     ctx = { kind: 'group', view, title: view.group.name };
     setToolbar({ mode: true, via: true });
     header({
-      kicker: 'Groupe Entra',
+      kicker: T.kindLabel.group,
       title: view.group.name,
       meta: [
         h('span', { class: 'mono', text: view.group.id }), copyBtn(view.group.id),
-        view.group.exists === false ? h('span', { class: 'tag-deleted', text: 'Supprimé dans Entra' }) : null,
+        view.group.exists === false ? h('span', { class: 'tag-deleted', text: L('Supprimé dans Entra', 'Deleted in Entra') }) : null,
       ],
       total: view.total,
-      totalLabel: view.total > 1 ? 'éléments assignés' : 'élément assigné',
+      totalLabel: view.total > 1 ? L('éléments assignés', 'assigned items') : L('élément assigné', 'assigned item'),
       actions: [linkButton('group', view.group.id), compareButton('group', view.group.id, view.group.name)],
     });
-    ensureTable(GROUP_COLUMNS, `Éléments assignés au groupe ${view.group.name}`);
+    ensureTable(GROUP_COLUMNS, L(`Éléments assignés au groupe ${view.group.name}`, `Items assigned to group ${view.group.name}`));
     renderNotes(status);
     refresh();
   }
@@ -378,19 +380,19 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     setToolbar({ mode: true });
     const n = asArray(view.assignments).length;
     header({
-      kicker: o.family,
+      kicker: familyLabel(o.family),
       title: o.name,
       meta: [
         o.platform ? h('span', { text: o.platform }) : null,
         h('span', { text: typeLabel(o.odataType) }),
-        h('span', { text: `Modifié le ${fmt.date(o.lastModified)}` }),
+        h('span', { text: L(`Modifié le ${fmt.date(o.lastModified)}`, `Modified ${fmt.date(o.lastModified)}`) }),
         h('span', { class: 'mono', text: o.id }), copyBtn(o.id),
       ],
       total: n,
-      totalLabel: n > 1 ? 'cibles' : 'cible',
+      totalLabel: n > 1 ? L('cibles', 'targets') : L('cible', 'target'),
       actions: [linkButton('object', o.id), compareButton('object', o.id, o.name)],
     });
-    ensureTable(OBJECT_COLUMNS, `Cibles de ${o.name}`);
+    ensureTable(OBJECT_COLUMNS, L(`Cibles de ${o.name}`, `Targets of ${o.name}`));
     renderNotes(status);
     refresh();
   }
@@ -406,13 +408,13 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     const name = describe(ctx.kind, v).name;
     if (tab === 'groups') {
       setToolbar({});
-      ensureTable(GROUP_LIST_COLUMNS, `Groupes Entra de ${name}`);
+      ensureTable(GROUP_LIST_COLUMNS, L(`Groupes Entra de ${name}`, `Entra groups of ${name}`));
     } else if (tab === 'devices') {
       setToolbar({});
-      ensureTable(DEVICE_COLUMNS, `Appareils de ${name}`);
+      ensureTable(DEVICE_COLUMNS, L(`Appareils de ${name}`, `Devices of ${name}`));
     } else {
       setToolbar({ mode: true, device: ctx.kind === 'user' && asArray(v.devices).length > 1 });
-      ensureTable(configColumns(ctx.kind === 'user'), `Éléments ciblant ${name}`, {
+      ensureTable(configColumns(ctx.kind === 'user'), L(`Éléments ciblant ${name}`, `Items targeting ${name}`), {
         className: `vt-profile vt-profile-${ctx.kind}`,
         rowClass: (r) => (r.targets.every((t) => t.stale) ? 'is-stale' : ''),
       });
@@ -423,8 +425,8 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
   function fillDeviceFilter(view) {
     const devs = asArray(view.devices);
     elDevice.replaceChildren(
-      h('option', { value: '', text: 'Tous' }),
-      ...devs.map((d) => h('option', { value: d.id, text: `${d.name}${d.stale ? ' (inactif)' : ''}` })),
+      h('option', { value: '', text: L('Tous', 'All') }),
+      ...devs.map((d) => h('option', { value: d.id, text: `${d.name}${d.stale ? L(' (inactif)', ' (inactive)') : ''}` })),
     );
     elDevice.value = '';
   }
@@ -440,15 +442,15 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     fillDeviceFilter(view);
     const n = asArray(view.configs).length;
     header({
-      kicker: 'Utilisateur',
+      kicker: T.kindLabel.user,
       title: u.name,
       meta: [
         h('span', { class: 'mono', text: u.upn || u.id }), copyBtn(u.upn || u.id),
-        h('span', { text: fmt.plural(devs.length, 'appareil', 'appareils') + (stale ? ` (dont ${fmt.plural(stale, 'inactif', 'inactifs')})` : '') }),
-        h('span', { text: fmt.plural(asArray(view.groups).length, 'groupe', 'groupes') }),
+        h('span', { text: fmt.plural(devs.length, L('appareil', 'device'), L('appareils', 'devices')) + (stale ? L(` (dont ${fmt.plural(stale, 'inactif', 'inactifs')})`, ` (${fmt.num(stale)} inactive)`) : '') }),
+        h('span', { text: fmt.plural(asArray(view.groups).length, L('groupe', 'group'), L('groupes', 'groups')) }),
       ],
       total: n,
-      totalLabel: n > 1 ? 'éléments ciblés' : 'élément ciblé',
+      totalLabel: n > 1 ? L('éléments ciblés', 'targeted items') : L('élément ciblé', 'targeted item'),
       actions: [linkButton('user', u.id), compareButton('user', u.id, u.name)],
     });
     renderNotes(status);
@@ -464,19 +466,19 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     const n = asArray(view.configs).length;
     const days = fmt.daysSince(d.lastSync);
     header({
-      kicker: ['Machine', d.stale ? h('span', { class: 'hdr-tag', text: `Inactive depuis ${fmt.num(days)} j` }) : null],
+      kicker: [T.kindLabel.device, d.stale ? h('span', { class: 'hdr-tag', text: L(`Inactive depuis ${fmt.num(days)} j`, `Inactive for ${fmt.num(days)} days`) }) : null],
       title: d.name,
       meta: [
         h('span', { text: [d.os, d.osVersion].filter(Boolean).join(' ') || '—' }),
         d.model ? h('span', { text: [d.maker, d.model].filter(Boolean).join(' ') }) : null,
-        h('span', { text: `Synchro ${fmt.ago(d.lastSync)}` }),
+        h('span', { text: L(`Synchro ${fmt.ago(d.lastSync)}`, `Synced ${fmt.ago(d.lastSync)}`) }),
         h('span', { text: complianceLabel(d.compliance) }),
         view.user
-          ? h('button', { type: 'button', class: 'btn-link hdr-user', title: `Ouvrir la fiche de ${view.user.name}`, on: { click: () => onOpenUser?.(view.user.id) } }, [icon('person'), view.user.name])
-          : h('span', { class: 'muted', text: 'Sans utilisateur' }),
+          ? h('button', { type: 'button', class: 'btn-link hdr-user', title: L(`Ouvrir la fiche de ${view.user.name}`, `Open ${view.user.name}'s page`), on: { click: () => onOpenUser?.(view.user.id) } }, [icon('person'), view.user.name])
+          : h('span', { class: 'muted', text: L('Sans utilisateur', 'No user') }),
       ],
       total: n,
-      totalLabel: n > 1 ? 'éléments ciblés' : 'élément ciblé',
+      totalLabel: n > 1 ? L('éléments ciblés', 'targeted items') : L('élément ciblé', 'targeted item'),
       actions: [linkButton('device', d.id), compareButton('device', d.id, d.name)],
     });
     renderNotes(status);
@@ -505,19 +507,19 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
       h('div', { class: 'cmp-hdr' }, [
         sideBlock('A', A, 'result-title'),
         h('button', {
-          type: 'button', class: 'icon-btn cmp-swap', title: 'Inverser A et B', 'aria-label': 'Inverser A et B',
+          type: 'button', class: 'icon-btn cmp-swap', title: L('Inverser A et B', 'Swap A and B'), 'aria-label': L('Inverser A et B', 'Swap A and B'),
           on: { click: () => onSwapCompare?.(kind, A.id, B.id) },
         }, [icon('swap')]),
         sideBlock('B', B, 'result-title-b'),
       ]),
       h('div', { class: 'hdr-actions' }, [
-        h('button', { type: 'button', class: 'btn', text: 'Fermer', title: `Revenir à ${A.name}`, on: { click: () => onCloseCompare?.(kind, A.id) } }),
+        h('button', { type: 'button', class: 'btn', text: L('Fermer', 'Close'), title: L(`Revenir à ${A.name}`, `Back to ${A.name}`), on: { click: () => onCloseCompare?.(kind, A.id) } }),
       ]),
     );
     hd.hidden = false;
     $('result-view').setAttribute('aria-labelledby', 'result-title');
 
-    ensureTable(compareColumns(A.name, B.name), `Comparaison de ${A.name} et ${B.name}`, {
+    ensureTable(compareColumns(A.name, B.name), L(`Comparaison de ${A.name} et ${B.name}`, `Comparison of ${A.name} and ${B.name}`), {
       className: 'vt-compare', rowClass: (r) => `gap-${r.gap}`,
     });
     renderNotes(status);
@@ -547,42 +549,42 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
   function profilePanel(row, items, actions) {
     if (row.kind === 'group') {
       items.push(
-        kv('Utilisation dans Intune', row.usedText),
-        kv('Identifiant', [h('span', { class: 'mono', text: row.groupId }), copyBtn(row.groupId)]),
+        kv(L('Utilisation dans Intune', 'Use in Intune'), row.usedText),
+        kv(L('Identifiant', 'ID'), [h('span', { class: 'mono', text: row.groupId }), copyBtn(row.groupId)]),
       );
-      actions.push(primary('Ouvrir ce groupe', () => onOpenGroup(row.groupId)));
+      actions.push(primary(L('Ouvrir ce groupe', 'Open this group'), () => onOpenGroup(row.groupId)));
     } else if (row.kind === 'device') {
       const d = row.raw;
       items.push(
-        kv('Système', row.osText),
-        kv('Modèle', row.modelText),
-        kv('N° de série', d.serial ? [h('span', { class: 'mono', text: d.serial }), copyBtn(d.serial)] : null),
-        kv('Dernière synchro', `${fmt.date(d.lastSync)} (${fmt.ago(d.lastSync)})`),
-        kv('État', d.stale ? [h('span', { class: 'badge badge-neutral', text: 'Inactif' }), ` : aucune synchro depuis plus de 30 jours`] : 'Actif'),
-        kv('Conformité', row.complianceText),
+        kv(L('Système', 'OS'), row.osText),
+        kv(L('Modèle', 'Model'), row.modelText),
+        kv(L('N° de série', 'Serial number'), d.serial ? [h('span', { class: 'mono', text: d.serial }), copyBtn(d.serial)] : null),
+        kv(L('Dernière synchro', 'Last sync'), `${fmt.date(d.lastSync)} (${fmt.ago(d.lastSync)})`),
+        kv(L('État', 'State'), d.stale ? [h('span', { class: 'badge badge-neutral', text: L('Inactif', 'Inactive') }), L(' : aucune synchro depuis plus de 30 jours', ': no sync for more than 30 days')] : L('Actif', 'Active')),
+        kv(L('Conformité', 'Compliance'), row.complianceText),
       );
-      actions.push(primary('Ouvrir la machine', () => onOpenDevice?.(row.deviceId)));
+      actions.push(primary(L('Ouvrir la machine', 'Open the device'), () => onOpenDevice?.(row.deviceId)));
     } else {
       items.push(
-        kv('Famille', row.family),
+        kv(L('Famille', 'Family'), familyLabel(row.family)),
         kv('Type', row.typeLabel),
-        kv('Statut', [badge(row.modeKey)]),
-        ctx.kind === 'device' ? kv('Ciblage', row.scopeText) : null,
+        kv(L('Statut', 'Status'), [badge(row.modeKey)]),
+        ctx.kind === 'device' ? kv(L('Ciblage', 'Targeting'), row.scopeText) : null,
         kv('Via', row.viaText),
         kv('Intent', row.intentText),
-        kv('Filtre', row.filter ? [`${row.filterText}`, h('span', { class: 'muted', text: 'Filtre non évalué : l\'application réelle en dépend.' })] : null),
-        kv('Plateforme', row.platform),
+        kv(L('Filtre', 'Filter'), row.filter ? [`${row.filterText}`, h('span', { class: 'muted', text: L('Filtre non évalué : l\'application réelle en dépend.', 'Filter not evaluated: whether it actually applies depends on it.') })] : null),
+        kv(L('Plateforme', 'Platform'), row.platform),
       );
       if (ctx.kind === 'user') {
         const list = h('ul', { class: 'dev-list' }, row.targets.filter((t) => t.deviceName).map((t) => h('li', {}, [
           devicePill(t),
-          h('span', { class: 'muted', text: t.mode === 'exclude' ? `Exclu par ${t.exclVia.join(', ')}` : t.via.join(', ') + (t.mixedExcl ? ` · exclusion non garantie : ${t.exclVia.join(', ')}` : '') }),
+          h('span', { class: 'muted', text: t.mode === 'exclude' ? L(`Exclu par ${t.exclVia.join(', ')}`, `Excluded by ${t.exclVia.join(', ')}`) : t.via.join(', ') + (t.mixedExcl ? L(` · exclusion non garantie : ${t.exclVia.join(', ')}`, ` · exclusion not guaranteed: ${t.exclVia.join(', ')}`) : '') }),
         ])));
-        if (row.mixedExcl) items.push(kv('Exclusion', 'Groupe d\'utilisateurs et groupe d\'appareils mélangés entre inclusion et exclusion : Intune ne le prend pas en charge, l\'exclusion peut ne pas s\'appliquer.'));
-        items.push(kv('Par appareil', row.targets.some((t) => t.deviceName) ? [list] : 'Utilisateur sans appareil : ciblage par l\'utilisateur seulement.'));
+        if (row.mixedExcl) items.push(kv('Exclusion', L('Groupe d\'utilisateurs et groupe d\'appareils mélangés entre inclusion et exclusion : Intune ne le prend pas en charge, l\'exclusion peut ne pas s\'appliquer.', 'A user group and a device group are mixed between inclusion and exclusion: Intune does not support this, so the exclusion may not apply.')));
+        items.push(kv(L('Par appareil', 'Per device'), row.targets.some((t) => t.deviceName) ? [list] : L('Utilisateur sans appareil : ciblage par l\'utilisateur seulement.', 'User without a device: targeting through the user only.')));
       }
-      items.push(kv('Identifiant', [h('span', { class: 'mono', text: row.objectId }), copyBtn(row.objectId)]));
-      actions.push(primary('Voir toutes les cibles de cet élément', () => onOpenObject(row.objectId)));
+      items.push(kv(L('Identifiant', 'ID'), [h('span', { class: 'mono', text: row.objectId }), copyBtn(row.objectId)]));
+      actions.push(primary(L('Voir toutes les cibles de cet élément', 'See all targets of this item'), () => onOpenObject(row.objectId)));
     }
   }
 
@@ -596,45 +598,45 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     if (ctx.kind === 'compare') {
       const sideKv = (letter, name, sd) => kv(`${letter} · ${name}`, sd
         ? [badge(sd.mode), sideDetail(sd) || null, sd.via ? h('span', { class: 'muted', text: sd.via }) : null].filter(Boolean)
-        : [h('span', { class: 'cmp-absent', text: 'Absent' })]);
+        : [h('span', { class: 'cmp-absent', text: L('Absent', 'Missing') })]);
       items.push(
-        kv('Écart', [gapBadge(row.gap)]),
-        kv('Famille', row.family),
+        kv(L('Écart', 'Difference'), [gapBadge(row.gap)]),
+        kv(L('Famille', 'Family'), familyLabel(row.family)),
         kv('Type', row.typeLabel),
         sideKv('A', ctx.a.name, row.a),
         sideKv('B', ctx.b.name, row.b),
-        row.objectId ? kv('Identifiant', [h('span', { class: 'mono', text: row.objectId }), copyBtn(row.objectId)]) : null,
-        row.groupId ? kv('Identifiant du groupe', [h('span', { class: 'mono', text: row.groupId }), copyBtn(row.groupId)]) : null,
+        row.objectId ? kv(L('Identifiant', 'ID'), [h('span', { class: 'mono', text: row.objectId }), copyBtn(row.objectId)]) : null,
+        row.groupId ? kv(L('Identifiant du groupe', 'Group ID'), [h('span', { class: 'mono', text: row.groupId }), copyBtn(row.groupId)]) : null,
       );
-      if (ctx.cmpKind !== 'object' && row.objectId) actions.push(primary('Voir toutes les cibles de cet élément', () => onOpenObject(row.objectId)));
-      if (row.groupId && row.groupExists !== false) actions.push(primary('Ouvrir ce groupe', () => onOpenGroup(row.groupId)));
+      if (ctx.cmpKind !== 'object' && row.objectId) actions.push(primary(L('Voir toutes les cibles de cet élément', 'See all targets of this item'), () => onOpenObject(row.objectId)));
+      if (row.groupId && row.groupExists !== false) actions.push(primary(L('Ouvrir ce groupe', 'Open this group'), () => onOpenGroup(row.groupId)));
     } else if (isProfile(ctx.kind)) {
       profilePanel(row, items, actions);
     } else if (ctx.kind === 'group') {
       items.push(
-        kv('Famille', row.family),
+        kv(L('Famille', 'Family'), familyLabel(row.family)),
         kv('Type', row.odataType ? `${row.typeLabel} (${String(row.odataType).replace('#microsoft.graph.', '')})` : null),
-        kv('Statut', [badge(row.modeKey)]),
+        kv(L('Statut', 'Status'), [badge(row.modeKey)]),
         kv('Via', row.viaText),
         kv('Intent', row.intentText),
-        kv('Filtre', row.filter ? [`${row.filterText}`, h('span', { class: 'mono muted', text: row.filter.id })] : null),
-        kv('Plateforme', row.platform),
-        kv('Dernière modification', r.lastModified ? fmt.date(r.lastModified) : null),
-        kv('Identifiant', [h('span', { class: 'mono', text: row.objectId }), copyBtn(row.objectId)]),
+        kv(L('Filtre', 'Filter'), row.filter ? [`${row.filterText}`, h('span', { class: 'mono muted', text: row.filter.id })] : null),
+        kv(L('Plateforme', 'Platform'), row.platform),
+        kv(L('Dernière modification', 'Last modified'), r.lastModified ? fmt.date(r.lastModified) : null),
+        kv(L('Identifiant', 'ID'), [h('span', { class: 'mono', text: row.objectId }), copyBtn(row.objectId)]),
       );
-      if (row.kind === 'global') items.push(kv('Remarque', 'Règle globale : application au groupe non calculée (indicatif).'));
-      actions.push(primary('Voir toutes les cibles de cet élément', () => onOpenObject(row.objectId)));
+      if (row.kind === 'global') items.push(kv(L('Remarque', 'Note'), L('Règle globale : application au groupe non calculée (indicatif).', 'Global rule: whether it applies to the group is not computed (for information).')));
+      actions.push(primary(L('Voir toutes les cibles de cet élément', 'See all targets of this item'), () => onOpenObject(row.objectId)));
     } else {
       items.push(
-        kv('Cible', row.typeLabel),
-        kv('Statut', [badge(row.modeKey)]),
+        kv(L('Cible', 'Target'), row.typeLabel),
+        kv(L('Statut', 'Status'), [badge(row.modeKey)]),
         kv('Via', row.viaText),
         kv('Intent', row.intentText),
-        kv('Filtre', row.filter ? [`${row.filterText}`, h('span', { class: 'mono muted', text: row.filter.id })] : null),
-        row.groupId ? kv('Identifiant du groupe', [h('span', { class: 'mono', text: row.groupId }), copyBtn(row.groupId)]) : null,
-        row.kind === 'group' && !row.groupExists ? kv('Remarque', 'Ce groupe a été supprimé dans Entra.') : null,
+        kv(L('Filtre', 'Filter'), row.filter ? [`${row.filterText}`, h('span', { class: 'mono muted', text: row.filter.id })] : null),
+        row.groupId ? kv(L('Identifiant du groupe', 'Group ID'), [h('span', { class: 'mono', text: row.groupId }), copyBtn(row.groupId)]) : null,
+        row.kind === 'group' && !row.groupExists ? kv(L('Remarque', 'Note'), L('Ce groupe a été supprimé dans Entra.', 'This group was deleted in Entra.')) : null,
       );
-      if (row.groupId) actions.push(primary('Ouvrir ce groupe', () => onOpenGroup(row.groupId)));
+      if (row.groupId) actions.push(primary(L('Ouvrir ce groupe', 'Open this group'), () => onOpenGroup(row.groupId)));
     }
     body.replaceChildren(
       h('dl', { class: 'kv' }, items.filter(Boolean).flat()),
@@ -676,8 +678,8 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     return ctx.kind === 'group' ? groupExport(visible) : objectExport(visible);
   }
   function exportName() {
-    if (ctx.kind === 'compare') return `Comparaison - ${ctx.title}`;
-    if (isProfile(ctx.kind)) return `${ctx.title} - ${{ configs: 'Configurations', groups: 'Groupes', devices: 'Appareils' }[ctx.tab]}`;
+    if (ctx.kind === 'compare') return L(`Comparaison - ${ctx.title}`, `Comparison - ${ctx.title}`);
+    if (isProfile(ctx.kind)) return `${ctx.title} - ${{ configs: 'Configurations', groups: L('Groupes', 'Groups'), devices: L('Appareils', 'Devices') }[ctx.tab]}`;
     return ctx.title;
   }
   $('btn-export').addEventListener('click', () => {
@@ -685,12 +687,12 @@ export function createResultView({ scroller, onOpenGroup, onOpenObject, onOpenUs
     const { headers, rows } = exportData();
     const day = new Date().toISOString().slice(0, 10);
     downloadText(`Intune Lens - ${safeFileName(exportName())} - ${day}.csv`, toCsv(headers, rows), 'text/csv;charset=utf-8');
-    toast(`${fmt.plural(rows.length, 'ligne exportée', 'lignes exportées')}`);
+    toast(fmt.plural(rows.length, L('ligne exportée', 'row exported'), L('lignes exportées', 'rows exported')));
   });
   $('btn-copy-table').addEventListener('click', () => {
     if (!ctx) return;
     const { headers, rows } = exportData();
-    copyText(toTsv(headers, rows), `${fmt.plural(rows.length, 'ligne copiée', 'lignes copiées')}`);
+    copyText(toTsv(headers, rows), fmt.plural(rows.length, L('ligne copiée', 'row copied'), L('lignes copiées', 'rows copied')));
   });
 
   return {

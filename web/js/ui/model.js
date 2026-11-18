@@ -1,7 +1,7 @@
 // model.js : logique pure (sans DOM) : filtres, regroupement par famille, export CSV/TSV.
 // Testée sous Node (tests/web/model.test.mjs).
 
-import { T, typeLabel, filterLabel, intentLabel, fmt } from '../i18n.fr.js';
+import { T, typeLabel, filterLabel, intentLabel, familyLabel, fmt, L, LOCALE, srv } from '../i18n.js';
 
 export const asArray = (x) => (Array.isArray(x) ? x : x === null || x === undefined ? [] : [x]);
 
@@ -13,7 +13,7 @@ export function norm(s) {
     .normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-const collator = new Intl.Collator('fr-FR', { sensitivity: 'base', numeric: true });
+const collator = new Intl.Collator(LOCALE, { sensitivity: 'base', numeric: true });
 
 function matchesText(row, q) {
   if (!q) return true;
@@ -35,7 +35,7 @@ export function groupItems(view) {
     odataType: it.odataType,
     typeLabel: typeLabel(it.odataType),
     modeKey: it.mode === 'exclude' ? 'exclude' : 'include',
-    viaText: it.via || T.via.direct,
+    viaText: srv(it.via) || T.via.direct,
     intentText: intentLabel(it.intent),
     filterText: filterLabel(it.filter),
     filter: it.filter || null,
@@ -52,7 +52,7 @@ export function groupItems(view) {
     odataType: null,
     typeLabel: '—',
     modeKey: g.excludedForGroup ? 'exclude' : 'potential',
-    viaText: T.via[g.target] || g.via || '',
+    viaText: T.via[g.target] || srv(g.via) || '',
     intentText: intentLabel(g.intent),
     filterText: filterLabel(g.filter),
     filter: g.filter || null,
@@ -88,7 +88,7 @@ export function buildGroupRows(view, opts) {
       const list = byFam.get(fam).sort((a, b) => collator.compare(a.name, b.name));
       const key = `fam:${fam}`;
       const expanded = !opts.collapsed?.has(key);
-      rows.push({ type: 'section', key, label: fam, count: list.length, countText: fmt.plural(list.length, 'élément', 'éléments'), expanded });
+      rows.push({ type: 'section', key, label: fam, count: list.length, countText: fmt.plural(list.length, L('élément', 'item'), L('éléments', 'items')), expanded });
       if (expanded) rows.push(...list);
       visible.push(...list);
     }
@@ -101,7 +101,7 @@ export function buildGroupRows(view, opts) {
       const excl = list.filter((r) => r.modeKey === 'exclude').length;
       rows.push({
         type: 'section', key, label: 'Assignations globales (indicatif)', count: list.length,
-        countText: fmt.plural(list.length, 'règle', 'règles') + (excl ? ` · ${fmt.plural(excl, 'exclusion de ce groupe', 'exclusions de ce groupe')}` : ''),
+        countText: fmt.plural(list.length, L('règle', 'rule'), L('règles', 'rules')) + (excl ? ` · ${fmt.plural(excl, L('exclusion de ce groupe', 'exclusion of this group'), L('exclusions de ce groupe', 'exclusions of this group'))}` : ''),
         expanded,
       });
       if (expanded) {
@@ -133,11 +133,11 @@ export function buildObjectRows(view, opts = {}) {
       kind: isGroup ? 'group' : isOther ? 'other' : 'global',
       groupId: a.groupId || null,
       groupExists: a.groupExists !== false,
-      name: isGroup ? a.groupName : isOther ? 'Cible non prise en charge' : T.via[a.target] || a.via,
+      name: isGroup ? srv(a.groupName) : isOther ? L('Cible non prise en charge', 'Unsupported target') : T.via[a.target] || srv(a.via),
       family: '',
-      typeLabel: isGroup ? 'Groupe Entra' : isOther ? 'Autre cible' : 'Cible globale',
+      typeLabel: isGroup ? T.kindLabel.group : isOther ? L('Autre cible', 'Other target') : L('Cible globale', 'Global target'),
       modeKey: a.mode === 'exclude' ? 'exclude' : 'include',
-      viaText: a.via || (isGroup ? T.via.direct : T.via[a.target] || ''),
+      viaText: srv(a.via) || (isGroup ? T.via.direct : T.via[a.target] || ''),
       intentText: intentLabel(a.intent),
       filterText: filterLabel(a.filter),
       filter: a.filter || null,
@@ -149,7 +149,7 @@ export function buildObjectRows(view, opts = {}) {
 }
 
 export const statusText = (modeKey) =>
-  modeKey === 'exclude' ? 'Exclu' : modeKey === 'potential' ? 'Potentiel' : modeKey === 'member' ? 'Membre' : 'Inclus';
+  modeKey === 'exclude' ? T.mode.exclude : modeKey === 'potential' ? L('Potentiel', 'Potential') : modeKey === 'member' ? L('Membre', 'Member') : T.mode.include;
 
 /** Neutralise l'injection de formules à l'ouverture dans Excel. */
 function safeCell(v) {
@@ -174,13 +174,13 @@ export function toTsv(headers, rows) {
 }
 
 export function groupExport(visible) {
-  const headers = ['Famille', 'Nom', 'Type', 'Statut', 'Via', 'Intent', 'Filtre', 'Plateforme', 'Identifiant'];
-  const rows = visible.map((r) => [r.family, r.name, r.typeLabel, statusText(r.modeKey), r.viaText, r.intentText, r.filterText, r.platform, r.objectId]);
+  const headers = [L('Famille', 'Family'), L('Nom', 'Name'), 'Type', L('Statut', 'Status'), 'Via', 'Intent', L('Filtre', 'Filter'), L('Plateforme', 'Platform'), L('Identifiant', 'ID')];
+  const rows = visible.map((r) => [familyLabel(r.family), r.name, r.typeLabel, statusText(r.modeKey), r.viaText, r.intentText, r.filterText, r.platform, r.objectId]);
   return { headers, rows };
 }
 
 export function objectExport(visible) {
-  const headers = ['Cible', 'Statut', 'Via', 'Intent', 'Filtre', 'Identifiant du groupe'];
+  const headers = [L('Cible', 'Target'), L('Statut', 'Status'), 'Via', 'Intent', L('Filtre', 'Filter'), L('Identifiant du groupe', 'Group ID')];
   const rows = visible.map((r) => [r.name, statusText(r.modeKey), r.viaText, r.intentText, r.filterText, r.groupId || '']);
   return { headers, rows };
 }

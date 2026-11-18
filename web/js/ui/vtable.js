@@ -7,6 +7,7 @@
 //   item    : données libres, rendues par columns[].render(row)
 
 import { h, icon } from './dom.js';
+import { familyLabel } from '../i18n.js';
 
 const MAX_DOM_ROWS = 60;
 const OVERSCAN = 6;
@@ -110,7 +111,7 @@ export class VTable {
     if (row.type === 'section') {
       el = h('div', { ...attrs, 'aria-expanded': row.expanded ? 'true' : 'false' }, [
         h('div', { class: 'cell', role: 'cell', 'aria-colspan': String(this.o.columns.length) }, [
-          h('span', { class: 'sec' }, [icon('chevron', 'icon chev'), row.label, h('span', { class: 'muted num', text: `· ${row.countText}` })]),
+          h('span', { class: 'sec' }, [icon('chevron', 'icon chev'), familyLabel(row.label), h('span', { class: 'muted num', text: `· ${row.countText}` })]),
         ]),
       ]);
     } else if (row.type === 'note') {

@@ -6,10 +6,10 @@
 //   devices : appareils de l'utilisateur (fiche Utilisateur seulement).
 
 import { asArray, norm, toCsv, toTsv } from './model.js';
-import { T, typeLabel, filterLabel, intentLabel, fmt } from '../i18n.fr.js';
+import { T, typeLabel, filterLabel, intentLabel, familyLabel, fmt, L, LOCALE, srv } from '../i18n.js';
 
 export const PAGE_SIZE = 20;
-const collator = new Intl.Collator('fr-FR', { sensitivity: 'base', numeric: true });
+const collator = new Intl.Collator(LOCALE, { sensitivity: 'base', numeric: true });
 
 const matches = (hay, q) => !q || q.split(/\s+/).filter(Boolean).every((t) => hay.includes(t));
 
@@ -22,7 +22,7 @@ export const complianceLabel = (c) => T.compliance[c] || c || '—';
 
 /** Libellé de portée du ciblage : par l'utilisateur, par l'appareil, ou les deux. */
 export function scopeLabel(scope) {
-  return scope === 'user' ? 'Utilisateur' : scope === 'device' ? 'Appareil' : scope === 'both' ? 'Utilisateur et appareil' : '—';
+  return scope === 'user' ? L('Utilisateur', 'User') : scope === 'device' ? L('Appareil', 'Device') : scope === 'both' ? L('Utilisateur et appareil', 'User and device') : '—';
 }
 
 /**
@@ -35,7 +35,7 @@ export function configItems(view, opts = {}) {
   for (const c of asArray(view.configs)) {
     let targets = asArray(c.targets).map((t) => {
       const d = t.deviceId ? devs.get(t.deviceId) : null;
-      return { ...t, via: asArray(t.via), exclVia: asArray(t.exclVia), deviceName: d ? d.name : '', stale: !!(d && d.stale), platform: d ? d.platform : '' };
+      return { ...t, via: asArray(t.via).map(srv), exclVia: asArray(t.exclVia).map(srv), deviceName: d ? d.name : '', stale: !!(d && d.stale), platform: d ? d.platform : '' };
     });
     if (opts.device) targets = targets.filter((t) => t.deviceId === opts.device);
     if (!targets.length) continue;
@@ -48,8 +48,8 @@ export function configItems(view, opts = {}) {
     // Exclusion d'un autre type que l'inclusion (utilisateur / appareil) : non prise en charge par Intune.
     const mixed = [...new Set(included.filter((t) => t.mixedExcl).flatMap((t) => t.exclVia))];
     const viaText = modeKey === 'exclude'
-      ? `Exclu par ${excl.join(', ')}`
-      : via.join(', ') + (mixed.length ? ` · exclusion non garantie : ${mixed.join(', ')}` : '');
+      ? L(`Exclu par ${excl.join(', ')}`, `Excluded by ${excl.join(', ')}`)
+      : via.join(', ') + (mixed.length ? L(` · exclusion non garantie : ${mixed.join(', ')}`, ` · exclusion not guaranteed: ${mixed.join(', ')}`) : '');
     out.push({
       type: 'item',
       key: `c:${c.objectId}`,
@@ -64,7 +64,7 @@ export function configItems(view, opts = {}) {
       scope: c.scope,
       scopeText: scopeLabel(c.scope),
       viaText,
-      exclText: excluded.length && modeKey === 'include' ? `Exclu sur ${excluded.map((t) => t.deviceName).filter(Boolean).join(', ')} (${realExcl.join(', ')})` : '',
+      exclText: excluded.length && modeKey === 'include' ? L(`Exclu sur ${excluded.map((t) => t.deviceName).filter(Boolean).join(', ')} (${realExcl.join(', ')})`, `Excluded on ${excluded.map((t) => t.deviceName).filter(Boolean).join(', ')} (${realExcl.join(', ')})`) : '',
       mixedExcl: mixed.length > 0,
       intentText: intentLabel(c.intent),
       filterText: filterLabel(c.filter),
@@ -80,8 +80,8 @@ export function configItems(view, opts = {}) {
 
 /** Texte « Appareils » d'une ligne (pour l'export et la recherche). */
 export function targetsText(row) {
-  if (row.allDevices && row.targets.length > 1) return 'Tous ses appareils';
-  return row.targets.map((t) => `${t.deviceName || 'Sans appareil'}${t.mode === 'exclude' ? ' (exclu)' : ''}`).join(', ');
+  if (row.allDevices && row.targets.length > 1) return L('Tous ses appareils', 'All their devices');
+  return row.targets.map((t) => `${t.deviceName || L('Sans appareil', 'No device')}${t.mode === 'exclude' ? L(' (exclu)', ' (excluded)') : ''}`).join(', ');
 }
 
 /**
@@ -107,7 +107,7 @@ export function buildConfigRows(view, opts = {}) {
     const excl = list.filter((r) => r.modeKey === 'exclude').length;
     rows.push({
       type: 'section', key, label: fam, count: list.length, expanded,
-      countText: fmt.plural(list.length, 'élément', 'éléments') + (excl ? ` · ${fmt.plural(excl, 'exclusion', 'exclusions')}` : ''),
+      countText: fmt.plural(list.length, L('élément', 'item'), L('éléments', 'items')) + (excl ? ` · ${fmt.plural(excl, 'exclusion', 'exclusions')}` : ''),
     });
     if (expanded) rows.push(...list);
     visible.push(...list);
@@ -145,8 +145,8 @@ export function buildGroupListRows(view, opts = {}) {
   const all = asArray(view.groups)
     .map((g) => ({
       type: 'item', key: `g:${g.id}`, kind: 'group', groupId: g.id, name: g.name, used: g.used || 0,
-      usedText: g.used ? fmt.plural(g.used, 'élément Intune', 'éléments Intune') : 'Non utilisé dans Intune',
-      typeLabel: 'Groupe Entra', raw: g,
+      usedText: g.used ? fmt.plural(g.used, L('élément Intune', 'Intune item'), L('éléments Intune', 'Intune items')) : L('Non utilisé dans Intune', 'Not used in Intune'),
+      typeLabel: T.kindLabel.group, raw: g,
     }))
     .filter((r) => matches(norm(`${r.name} ${r.groupId}`), q));
   const pages = pageCount(all.length);
@@ -169,18 +169,18 @@ export function buildDeviceRows(view, opts = {}) {
 }
 
 export function configExport(visible, withDevices) {
-  const headers = ['Famille', 'Nom', 'Type', 'Statut', withDevices ? 'Appareils' : 'Ciblage', 'Via', 'Intent', 'Filtre', 'Plateforme', 'Identifiant'];
-  const rows = visible.map((r) => [r.family, r.name, r.typeLabel, r.modeKey === 'exclude' ? 'Exclu' : 'Inclus',
+  const headers = [L('Famille', 'Family'), L('Nom', 'Name'), 'Type', L('Statut', 'Status'), withDevices ? L('Appareils', 'Devices') : L('Ciblage', 'Targeting'), 'Via', 'Intent', L('Filtre', 'Filter'), L('Plateforme', 'Platform'), L('Identifiant', 'ID')];
+  const rows = visible.map((r) => [familyLabel(r.family), r.name, r.typeLabel, r.modeKey === 'exclude' ? T.mode.exclude : T.mode.include,
     withDevices ? targetsText(r) : r.scopeText, r.viaText, r.intentText, r.filterText, r.platform, r.objectId]);
   return { headers, rows };
 }
 export function groupListExport(visible) {
-  return { headers: ['Groupe', 'Utilisation dans Intune', 'Identifiant'], rows: visible.map((r) => [r.name, r.usedText, r.groupId]) };
+  return { headers: [L('Groupe', 'Group'), L('Utilisation dans Intune', 'Use in Intune'), L('Identifiant', 'ID')], rows: visible.map((r) => [r.name, r.usedText, r.groupId]) };
 }
 export function deviceExport(visible) {
   return {
-    headers: ['Appareil', 'Système', 'Modèle', 'Dernière synchro', 'Conformité', 'État', 'N° de série', 'Identifiant Intune'],
-    rows: visible.map((r) => [r.name, r.osText, r.modelText, fmt.date(r.raw.lastSync), r.complianceText, r.stale ? 'Inactif' : 'Actif', r.raw.serial || '', r.deviceId]),
+    headers: [L('Appareil', 'Device'), L('Système', 'OS'), L('Modèle', 'Model'), L('Dernière synchro', 'Last sync'), L('Conformité', 'Compliance'), L('État', 'State'), L('N° de série', 'Serial number'), L('Identifiant Intune', 'Intune ID')],
+    rows: visible.map((r) => [r.name, r.osText, r.modelText, fmt.date(r.raw.lastSync), r.complianceText, r.stale ? L('Inactif', 'Inactive') : L('Actif', 'Active'), r.raw.serial || '', r.deviceId]),
   };
 }
 

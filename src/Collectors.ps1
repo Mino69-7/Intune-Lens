@@ -120,7 +120,7 @@ function Get-IalObjectList {
         if ([int]$_.Exception.Data['IalStatus'] -ne 400) { throw }
         $minimal = 'id,{0},lastModifiedDateTime' -f $Type.NameProp
         if ($minimal -eq $Type.Select) { throw }
-        Write-IalLog -Level WARN -Message "Type $($Type.Key) : `$select refusé (400), repli sur « $minimal »."
+        Write-IalLog -Level WARN -Message (Tx "Type $($Type.Key) : `$select refusé (400), repli sur « $minimal »." "Type $($Type.Key): `$select refused (400), falling back to '$minimal'.")
         $raw = Invoke-GraphList -Uri ('{0}/{1}?$select={2}' -f $base, $Type.Path, $minimal)
     }
     $out = [System.Collections.Generic.List[object]]::new()
@@ -170,7 +170,7 @@ function Get-IalAssignments {
             $r = $resp[$id]
             if (-not $r -or $r.status -lt 200 -or $r.status -ge 300) {
                 $st = if ($r) { $r.status } else { 0 }
-                Write-IalLog -Level WARN -Message "Assignations illisibles pour un objet de type $($Type.Key) (HTTP $st)."
+                Write-IalLog -Level WARN -Message (Tx "Assignations illisibles pour un objet de type $($Type.Key) (HTTP $st)." "Assignments unreadable for an object of type $($Type.Key) (HTTP $st).")
                 $result[$id] = $null
                 continue
             }
@@ -241,7 +241,7 @@ function Get-IalManagedDevices {
     try { $raw = Invoke-GraphList -Uri ('{0}/{1}?$select={2}' -f $base, $t.Path, $t.Select) }
     catch {
         if ([int]$_.Exception.Data['IalStatus'] -ne 400) { throw }
-        Write-IalLog -Level WARN -Message 'Appareils : $select refusé (400), lecture sans $select.'
+        Write-IalLog -Level WARN -Message (Tx 'Appareils : $select refusé (400), lecture sans $select.' 'Devices: $select refused (400), reading without $select.')
         $raw = Invoke-GraphList -Uri ('{0}/{1}' -f $base, $t.Path)
     }
     $out = [System.Collections.Generic.List[object]]::new($raw.Count)

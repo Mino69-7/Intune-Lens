@@ -1,3 +1,4 @@
+import { L } from '../i18n.js';
 // dom.js : petits utilitaires DOM. Le texte passe TOUJOURS par textContent (jamais d'HTML issu des données).
 
 export const $ = (id) => document.getElementById(id);
@@ -74,12 +75,12 @@ export function toast(message) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
-export async function copyText(text, okMessage = 'Copié dans le presse-papiers') {
+export async function copyText(text, okMessage = L('Copié dans le presse-papiers', 'Copied to the clipboard')) {
   try {
     await navigator.clipboard.writeText(text);
     toast(okMessage);
   } catch {
-    toast('Copie impossible : le navigateur a refusé l’accès au presse-papiers.');
+    toast(L('Copie impossible : le navigateur a refusé l’accès au presse-papiers.', 'Copy failed: the browser denied access to the clipboard.'));
   }
 }
 

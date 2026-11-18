@@ -626,6 +626,7 @@ if ('Server' -in $Section) {
         foreach ($f in 'Config', 'Log', 'GraphClient', 'Collectors', 'Index', 'Cache', 'Sync', 'Server') { . (Join-Path $root "src\$f.ps1") }
         Initialize-IalLog -Quiet
         Initialize-IalCache -Directory $cacheDir
+        $null = Initialize-IalPrefs -Directory $cacheDir
         Initialize-IalGraphMock -FixturesDir $fixtures
         $state.SrvCallLog = $script:IalMock.CallLog     # journal des appels Graph (Mock) du runspace serveur
         try { Invoke-IalServerLoop -Server $srv -State $state }
@@ -639,6 +640,19 @@ if ('Server' -in $Section) {
 
         $r = Invoke-RawHttp -Port $P -Path '/'
         Assert-True ($r.Status -eq 200 -and $r.Body -match 'Intune Lens') 'GET / : 200'
+        Assert-True ($r.Body -match '<html lang="en" data-lang="en" data-theme="light">') 'Page : anglais et thème clair par défaut, écrits par le serveur'
+        $pf = Invoke-RawHttp -Port $P -Method 'POST' -Path '/api/prefs' -Headers $tok -Body '{"lang":"fr","theme":"dark"}'
+        $prefsFile = Join-Path $script:TestCacheDir 'prefs.json'
+        Assert-True ($pf.Status -eq 200 -and (Test-Path $prefsFile) -and (Get-Content $prefsFile -Raw) -match '"lang":"fr"') 'Réglages : langue et thème enregistrés sur disque (prefs.json)'
+        Assert-True ((Invoke-RawHttp -Port $P -Path '/').Body -match '<html lang="fr" data-lang="fr" data-theme="dark">') 'Page : la langue et le thème enregistrés sont appliqués dès le chargement'
+        Assert-True ((Invoke-RawHttp -Port $P -Method 'POST' -Path '/api/prefs' -Headers $tok -Body '{"lang":"de"}').Status -eq 400 -and (Invoke-RawHttp -Port $P -Method 'POST' -Path '/api/prefs' -Headers $tok -Body '{"x":"y"}').Status -eq 400) 'Réglages : valeur ou clé inconnue refusée (400)'
+        Assert-True ((Invoke-RawHttp -Port $P -Method 'POST' -Path '/api/prefs' -Body '{"lang":"fr"}').Status -eq 401) 'Réglages : jeton de session obligatoire'
+        $null = Invoke-RawHttp -Port $P -Method 'POST' -Path '/api/prefs' -Headers $tok -Body '{"lang":"en","theme":"light"}'
+        $null = Initialize-IalPrefs -Directory $script:TestCacheDir
+        Assert-True ($script:IalPrefs.Values.lang -eq 'en' -and $script:IalPrefs.Values.theme -eq 'light') 'Réglages : relus au démarrage suivant'
+        Set-Content -LiteralPath $prefsFile -Value '{not json' -Encoding utf8
+        Assert-True ((Initialize-IalPrefs -Directory $script:TestCacheDir).lang -eq 'en') 'Réglages : fichier abîmé ignoré (anglais par défaut)'
+        $null = Initialize-IalPrefs
         Assert-True ($r.Headers['Content-Security-Policy'] -like "default-src 'none'*") 'En-tête CSP présent'
         Assert-True ($r.Headers['X-Content-Type-Options'] -eq 'nosniff' -and $r.Headers['Referrer-Policy'] -eq 'no-referrer' -and $r.Headers['Cross-Origin-Resource-Policy'] -eq 'same-origin') 'En-têtes nosniff / no-referrer / CORP'
         Assert-True (-not $r.Headers.ContainsKey('Access-Control-Allow-Origin')) 'Aucun en-tête CORS'
@@ -765,7 +779,7 @@ if ('Static' -in $Section) {
             # Seule exception : l'installeur (lancé une fois par l'utilisateur, avec son accord) installe le module
             # officiel Microsoft Graph pour son compte. L'outil lui-même n'installe jamais rien.
             $okInst = @($hits | Where-Object { $_.Path -like '*\setup\Install-IntuneLens.ps1' -and $_.Line -match 'Install-Module -Name Microsoft\.Graph\.Authentication -Scope CurrentUser -Repository PSGallery' })
-            $calls = @($hits | Where-Object { $_.Line -notmatch '^\s*Write-Host ' })   # les messages affichés ne sont pas des appels
+            $calls = @($hits | Where-Object { $_.Line -notmatch '^\s*Write-Host ' -and $_.Line -notmatch '["''][^"'']*Install-Module' })   # les messages affichés (texte entre guillemets) ne sont pas des appels
             Assert-True ($calls.Count -eq 1 -and $okInst.Count -eq 1) "Install-Module : uniquement dans l'installeur, Microsoft.Graph.Authentication pour l'utilisateur courant ($($hits.Count))"
         }
         elseif ($pat -eq 'Start-Process') {
@@ -839,7 +853,7 @@ if ('Static' -in $Section) {
     if (Get-Command node -ErrorAction SilentlyContinue) {
         $bad = @(Get-ChildItem (Join-Path $root 'web\js') -Recurse -Filter *.js | Where-Object { node --check $_.FullName 2>$null; $LASTEXITCODE -ne 0 })
         Assert-True ($bad.Count -eq 0) "JS : syntaxe valide (node --check) $(($bad | ForEach-Object Name) -join ', ')"
-        $out = node --test (Join-Path $root 'tests\web\model.test.mjs') (Join-Path $root 'tests\web\chrome.test.mjs') (Join-Path $root 'tests\web\compare.test.mjs') (Join-Path $root 'tests\web\profile.test.mjs') (Join-Path $root 'tests\web\link.test.mjs') 2>&1 | Out-String
+        $out = node --test (Join-Path $root 'tests\web\model.test.mjs') (Join-Path $root 'tests\web\chrome.test.mjs') (Join-Path $root 'tests\web\compare.test.mjs') (Join-Path $root 'tests\web\profile.test.mjs') (Join-Path $root 'tests\web\link.test.mjs') (Join-Path $root 'tests\web\i18n-en.test.mjs') 2>&1 | Out-String
         Assert-True ($LASTEXITCODE -eq 0) "Logique de l'interface : tests Node ($(([regex]::Match($out, 'pass (\d+)')).Groups[1].Value) réussis)"
     }
     else { Write-Host '  [INFO] Node absent : contrôles JS ignorés.' -ForegroundColor Yellow }

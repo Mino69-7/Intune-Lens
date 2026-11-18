@@ -1,8 +1,8 @@
 // app.js : point d'entrée de l'interface. Routage, raccourcis clavier, thèmes, menus, gestion des erreurs.
 
-import { captureToken, api } from './api.js';
+import { captureToken, api, reloadWithSession } from './api.js';
 import { store } from './state.js';
-import { fmt, T } from './i18n.fr.js';
+import { fmt, T, L, LANG, tx, familyLabel } from './i18n.js';
 import * as glass from './glass.js';
 import { $, h, toast } from './ui/dom.js';
 import { openMenu, closeMenu, isMenuOpen } from './ui/menu.js';
@@ -15,26 +15,54 @@ import { parseShareLink } from './ui/link.js';
 const root = $('glass-root');
 /** Types de recherche, dans l'ordre du sélecteur. */
 const KINDS = ['user', 'device', 'group', 'object'];
-const KIND_SHORT = { user: 'Utilisateur', device: 'Machine', group: 'Groupe', object: 'Élément' };
-const NOT_FOUND = { user: 'Utilisateur introuvable.', device: 'Machine introuvable.', group: 'Groupe introuvable.', object: 'Élément introuvable.' };
+const KIND_SHORT = { user: L('Utilisateur', 'User'), device: L('Machine', 'Device'), group: L('Groupe', 'Group'), object: L('Élément', 'Item') };
+const NOT_FOUND = {
+  user: L('Utilisateur introuvable.', 'User not found.'), device: L('Machine introuvable.', 'Device not found.'),
+  group: L('Groupe introuvable.', 'Group not found.'), object: L('Élément introuvable.', 'Item not found.'),
+};
 const content = $('content');
-let kind = store.get('kind');
+// Search type: always "User" at startup (the selector then follows the page that is open).
+let kind = 'user';
 let lastStatus = null;
 let fatal = false;
 
 // ---------------------------------------------------------------- Thème
 
-// Deux thèmes : clair (défaut) et sombre. Bascule par l'interrupteur « Mode sombre » des réglages ou la touche T.
-const THEME_LABEL = { light: 'Clair', dark: 'Sombre' };
+// Two themes: light (default) and dark. Toggle: "Dark mode" switch in the settings, or the T key.
+// Saved by the server (prefs.json), which writes it into <html data-theme> at the next launch: no flash.
+const THEME_LABEL = { light: L('Clair', 'Light'), dark: L('Sombre', 'Dark') };
+const currentTheme = () => (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
 }
 function setTheme(t) {
-  store.set('theme', t);
   applyTheme(t);
-  toast(`Thème : ${THEME_LABEL[t]}`);
+  api.setPrefs({ theme: t }).catch(() => { /* not saved: the theme still applies to this session */ });
+  toast(L(`Thème : ${THEME_LABEL[t]}`, `Theme: ${THEME_LABEL[t]}`));
 }
-function toggleTheme() { setTheme(store.get('theme') === 'dark' ? 'light' : 'dark'); }
+function toggleTheme() { setTheme(currentTheme() === 'dark' ? 'light' : 'dark'); }
+
+// ---------------------------------------------------------------- Language
+
+// English by default. Saved by the server, so the choice survives a full restart. Changing it reloads the page.
+async function setLanguage(lang) {
+  if (lang === LANG) return;
+  try {
+    await api.setPrefs({ lang });
+    reloadWithSession();
+  } catch (e) { handleError(e); }
+}
+
+/** Static page text: written in English in index.html; French from the data-fr* attributes. */
+function applyStaticText() {
+  if (LANG === 'fr') {
+    for (const el of document.querySelectorAll('[data-fr]')) el.textContent = el.dataset.fr;
+    for (const [attr, data] of [['placeholder', 'frPlaceholder'], ['title', 'frTitle'], ['aria-label', 'frAriaLabel']]) {
+      for (const el of document.querySelectorAll(`[data-fr-${attr}]`)) el.setAttribute(attr, el.dataset[data]);
+    }
+  }
+  document.documentElement.classList.add('i18n-ready');
+}
 
 // ---------------------------------------------------------------- Erreurs bloquantes
 
@@ -166,7 +194,6 @@ function placeThumb() {
 function setKind(k, { focus = false } = {}) {
   if (picking) return;          // type verrouillé pendant « Comparer avec… »
   kind = k;
-  store.set('kind', k);
   for (const b of $('segmented').querySelectorAll('[role="tab"]')) {
     const on = b.dataset.kind === k;
     b.setAttribute('aria-selected', String(on));
@@ -189,7 +216,7 @@ function renderRecent() {
     h('button', {
       type: 'button', class: 'chip', title: r.name,
       on: { click: () => navigate(r.kind, r.id) },
-    }, [h('span', { class: 'chip-kind', text: KIND_SHORT[r.kind] || 'Élément' }), h('span', { class: 'chip-label', text: r.name })]),
+    }, [h('span', { class: 'chip-kind', text: KIND_SHORT[r.kind] || KIND_SHORT.object }), h('span', { class: 'chip-label', text: r.name })]),
   ])));
 }
 
@@ -207,8 +234,11 @@ function startComparePick(k, id, name) {
   search.setPick({ kind: k, excludeId: id, label: name });
   layout();
   search.focus();
-  const what = { user: "l'utilisateur", device: 'la machine', group: 'le groupe', object: "l'élément" }[k];
-  toast(`Choisissez ${what} à comparer (Échap pour annuler).`);
+  const what = {
+    user: L("l'utilisateur", 'the user'), device: L('la machine', 'the device'),
+    group: L('le groupe', 'the group'), object: L("l'élément", 'the item'),
+  }[k];
+  toast(L(`Choisissez ${what} à comparer (Échap pour annuler).`, `Choose ${what} to compare with (Esc to cancel).`));
 }
 
 function stopComparePick() {
@@ -303,7 +333,7 @@ async function routeCompare(k, idA, idB, mine, opts) {
   } catch (e) {
     if (mine !== routeSeq) return;
     if (e.kind === 'http' && e.status === 404) {
-      toast('Élément de la comparaison introuvable.');
+      toast(L('Élément de la comparaison introuvable.', 'An item of the comparison was not found.'));
       goHome();
     } else {
       handleError(e);
@@ -318,22 +348,22 @@ async function routeCompare(k, idA, idB, mine, opts) {
 async function doRefresh(mode) {
   try {
     const r = await api.refresh(mode);
-    toast(r?.message || (mode === 'full' ? 'Synchronisation complète lancée.' : 'Synchronisation lancée.'));
+    toast(tx(r?.message) || (mode === 'full' ? L('Synchronisation complète lancée.', 'Full sync started.') : L('Synchronisation lancée.', 'Sync started.')));
     status.refreshNow();
   } catch (e) { handleError(e); }
 }
 async function doClearCache() {
-  if (!confirm('Effacer le cache local ? Les données seront relues depuis Microsoft Graph au prochain démarrage.')) return;
-  try { const r = await api.clearCache(); toast(r?.message || 'Cache local effacé.'); } catch (e) { handleError(e); }
+  if (!confirm(L('Effacer le cache local ? Les données seront relues depuis Microsoft Graph au prochain démarrage.', 'Clear the local cache? Data will be read again from Microsoft Graph at the next start.'))) return;
+  try { const r = await api.clearCache(); toast(tx(r?.message) || L('Cache local effacé.', 'Local cache cleared.')); } catch (e) { handleError(e); }
 }
 async function doShutdown() {
-  if (!confirm("Arrêter l'outil ? Le serveur local s'arrête et la session Graph est fermée.")) return;
+  if (!confirm(L("Arrêter l'outil ? Le serveur local s'arrête et la session Graph est fermée.", 'Stop the tool? The local server stops and the Graph session is closed.'))) return;
   try {
     await api.shutdown();
     stopped = true;
     fatal = true;
-    $('overlay-title').textContent = 'Outil arrêté';
-    $('overlay-text').textContent = 'Le serveur local est arrêté. Vous pouvez fermer cet onglet.';
+    $('overlay-title').textContent = L('Outil arrêté', 'Tool stopped');
+    $('overlay-text').textContent = L('Le serveur local est arrêté. Vous pouvez fermer cet onglet.', 'The local server is stopped. You can close this tab.');
     $('overlay-retry').hidden = true;
     $('overlay').hidden = false;
   } catch (e) { handleError(e); }
@@ -342,33 +372,41 @@ async function doShutdown() {
 function openStatusMenu() {
   const s = lastStatus || {};
   const items = [
-    { type: 'label', label: 'Synchronisation' },
-    { type: 'info', label: `État : ${T.phase[s.phase] || '—'}` },
-    { type: 'info', label: `Dernière synchro : ${fmt.date(s.lastSyncAt)}` },
-    { type: 'info', label: `Dernière synchro complète : ${fmt.date(s.lastFullSyncAt)}` },
+    { type: 'label', label: L('Synchronisation', 'Sync') },
+    { type: 'info', label: L(`État : ${T.phase[s.phase] || '—'}`, `Status: ${T.phase[s.phase] || '—'}`) },
+    { type: 'info', label: L(`Dernière synchro : ${fmt.date(s.lastSyncAt)}`, `Last sync: ${fmt.date(s.lastSyncAt)}`) },
+    { type: 'info', label: L(`Dernière synchro complète : ${fmt.date(s.lastFullSyncAt)}`, `Last full sync: ${fmt.date(s.lastFullSyncAt)}`) },
   ];
   const st = s.lastSyncStats;
   if (st) {
-    items.push({ type: 'info', label: `Dernière synchro ${st.mode === 'full' ? 'complète' : 'incrémentale'} : ${fmt.num(st.durationSec)} s, ${fmt.plural(st.requests, 'requête', 'requêtes')}` });
-    items.push({ type: 'info', label: `${fmt.plural(st.added, 'nouveau', 'nouveaux')} · ${fmt.plural(st.changed, 'modifié', 'modifiés')} · ${fmt.plural(st.deleted, 'supprimé', 'supprimés')} · ${fmt.plural(st.assignmentsRead, 'élément relu', 'éléments relus')}` });
+    items.push({ type: 'info', label: L(
+      `Dernière synchro ${st.mode === 'full' ? 'complète' : 'incrémentale'} : ${fmt.num(st.durationSec)} s, ${fmt.plural(st.requests, 'requête', 'requêtes')}`,
+      `Last ${st.mode === 'full' ? 'full' : 'incremental'} sync: ${fmt.num(st.durationSec)} s, ${fmt.plural(st.requests, 'request', 'requests')}`,
+    ) });
+    items.push({ type: 'info', label: L(
+      `${fmt.plural(st.added, 'nouveau', 'nouveaux')} · ${fmt.plural(st.changed, 'modifié', 'modifiés')} · ${fmt.plural(st.deleted, 'supprimé', 'supprimés')} · ${fmt.plural(st.assignmentsRead, 'élément relu', 'éléments relus')}`,
+      `${fmt.num(st.added)} new · ${fmt.num(st.changed)} changed · ${fmt.num(st.deleted)} deleted · ${fmt.plural(st.assignmentsRead, 'item re-read', 'items re-read')}`,
+    ) });
   } else if (s.dataSource === 'cache') {
-    items.push({ type: 'info', label: 'Données issues du cache local, synchronisation en attente.' });
+    items.push({ type: 'info', label: L('Données issues du cache local, synchronisation en attente.', 'Data from the local cache, sync pending.') });
   }
-  items.push({ type: 'info', label: s.cacheEnabled ? `Cache local : ${s.cacheSavedAt ? `enregistré le ${fmt.date(s.cacheSavedAt)}` : 'pas encore enregistré'}` : 'Cache local désactivé (-NoDiskCache)' });
-  if (s.foregroundSync) items.push({ type: 'info', label: 'Synchronisation au premier plan (repli) : l’interface ne répond pas pendant une synchro.' });
-  if (s.mode === 'Mock') items.push({ type: 'info', label: 'Mode démo : données fictives' });
+  items.push({ type: 'info', label: s.cacheEnabled
+    ? (s.cacheSavedAt ? L(`Cache local : enregistré le ${fmt.date(s.cacheSavedAt)}`, `Local cache: saved ${fmt.date(s.cacheSavedAt)}`) : L('Cache local : pas encore enregistré', 'Local cache: not saved yet'))
+    : L('Cache local désactivé (-NoDiskCache)', 'Local cache disabled (-NoDiskCache)') });
+  if (s.foregroundSync) items.push({ type: 'info', label: L('Synchronisation au premier plan (repli) : l’interface ne répond pas pendant une synchro.', 'Foreground sync (fallback): the interface does not respond during a sync.') });
+  if (s.mode === 'Mock') items.push({ type: 'info', label: L('Mode démo : données fictives', 'Demo mode: fictitious data') });
   items.push(
     { type: 'sep' },
-    { label: 'Synchronisation incrémentale (R)', onSelect: () => doRefresh('incremental') },
-    { label: 'Synchronisation complète (Maj+R)', onSelect: () => doRefresh('full') },
-    { label: 'Effacer le cache local', onSelect: doClearCache },
+    { label: L('Synchronisation incrémentale (R)', 'Incremental sync (R)'), onSelect: () => doRefresh('incremental') },
+    { label: L('Synchronisation complète (Maj+R)', 'Full sync (Shift+R)'), onSelect: () => doRefresh('full') },
+    { label: L('Effacer le cache local', 'Clear the local cache'), onSelect: doClearCache },
   );
   const unc = Array.isArray(s.uncovered) ? s.uncovered : [];
   if (unc.length) {
-    items.push({ type: 'sep' }, { type: 'label', label: 'Non couvert (permission non consentie)' });
-    for (const u of unc) items.push({ type: 'info', label: `${u.family} : ${u.reason}` });
+    items.push({ type: 'sep' }, { type: 'label', label: L('Non couvert (permission non consentie)', 'Not covered (permission not granted)') });
+    for (const u of unc) items.push({ type: 'info', label: `${familyLabel(u.family)}${L(' : ', ': ')}${tx(u.reason)}` });
   }
-  openMenu($('status-btn'), items, 'Synchronisation');
+  openMenu($('status-btn'), items, L('Synchronisation', 'Sync'));
 }
 
 /** État du tenant affiché dans les réglages : libellé + coche bleue quand tout est à jour. */
@@ -376,27 +414,31 @@ function tenantState(s) {
   const busy = s.syncRunning || !['done', 'idle', 'error'].includes(s.phase);
   const p = s.progress || {};
   const pc = p.total > 0 ? Math.min(100, Math.floor((p.done / p.total) * 100)) : null;
-  if (s.phase === 'error' || s.error) return { label: 'Échec de la synchronisation', ok: false };
-  if (busy) return { label: pc === null ? 'Synchronisation en cours…' : `Synchronisation en cours (${pc} %)`, ok: false };
-  if (!s.ready) return { label: 'En attente de données', ok: false };
-  return { label: 'Tenant synchronisé', ok: true };
+  if (s.phase === 'error' || s.error) return { label: L('Échec de la synchronisation', 'Sync failed'), ok: false };
+  if (busy) return { label: pc === null ? L('Synchronisation en cours…', 'Sync in progress…') : L(`Synchronisation en cours (${pc} %)`, `Sync in progress (${pc}%)`), ok: false };
+  if (!s.ready) return { label: L('En attente de données', 'Waiting for data'), ok: false };
+  return { label: L('Tenant synchronisé', 'Tenant synced'), ok: true };
 }
 
 function openSettingsMenu() {
   const s = lastStatus || {};
   const ts = tenantState(s);
   const items = [
-    { type: 'label', label: 'Tenant' },
+    { type: 'label', label: 'Tenant' },   // same word in both languages
     { type: 'state', label: ts.label, checked: ts.ok },
-    { type: 'info', label: s.mode === 'Mock' ? 'Mode démo : données fictives' : `ID du tenant : ${s.tenantId || '—'}` },
-    { type: 'info', label: `Dernière synchro : ${fmt.date(s.lastSyncAt)}` },
+    { type: 'info', label: s.mode === 'Mock' ? L('Mode démo : données fictives', 'Demo mode: fictitious data') : L(`ID du tenant : ${s.tenantId || '—'}`, `Tenant ID: ${s.tenantId || '—'}`) },
+    { type: 'info', label: L(`Dernière synchro : ${fmt.date(s.lastSyncAt)}`, `Last sync: ${fmt.date(s.lastSyncAt)}`) },
     { type: 'sep' },
-    { type: 'toggle', label: 'Mode sombre (T)', checked: store.get('theme') === 'dark', onSelect: toggleTheme },
+    { type: 'toggle', label: L('Mode sombre (T)', 'Dark mode (T)'), checked: currentTheme() === 'dark', onSelect: toggleTheme },
     { type: 'sep' },
-    { label: 'Effacer les recherches récentes', onSelect: () => { store.clearRecent(); renderRecent(); toast('Recherches récentes effacées.'); } },
-    { label: "Arrêter l'outil", danger: true, onSelect: doShutdown },
+    { type: 'label', label: L('Langue', 'Language') },
+    { label: 'English', checked: LANG === 'en', onSelect: () => setLanguage('en') },
+    { label: 'Français', checked: LANG === 'fr', onSelect: () => setLanguage('fr') },
+    { type: 'sep' },
+    { label: L('Effacer les recherches récentes', 'Clear recent searches'), onSelect: () => { store.clearRecent(); renderRecent(); toast(L('Recherches récentes effacées.', 'Recent searches cleared.')); } },
+    { label: L("Arrêter l'outil", 'Stop the tool'), danger: true, onSelect: doShutdown },
   ];
-  openMenu($('btn-settings'), items, 'Réglages');
+  openMenu($('btn-settings'), items, L('Réglages', 'Settings'));
 }
 
 // ---------------------------------------------------------------- Clavier
@@ -429,7 +471,7 @@ document.addEventListener('keydown', (e) => {
 
 // ---------------------------------------------------------------- Démarrage
 
-applyTheme(store.get('theme'));
+applyStaticText();
 
 const search = createSearch({
   getKind: () => kind,
@@ -437,7 +479,7 @@ const search = createSearch({
     if (picking) { const p = picking; stopComparePick(); openCompare(p.kind, p.id, r.id); }
     else navigate(r.kind, r.id);
   },
-  onCancelPick: () => { stopComparePick(); toast('Comparaison annulée.'); },
+  onCancelPick: () => { stopComparePick(); toast(L('Comparaison annulée.', 'Comparison cancelled.')); },
   onError: handleError,
 });
 
@@ -458,14 +500,17 @@ const status = createStatus({
     lastStatus = s;
     if (updated) {
       const st = s.lastSyncStats;
-      toast(st ? `Données mises à jour : ${fmt.plural(st.added, 'nouveau', 'nouveaux')}, ${fmt.plural(st.changed, 'modifié', 'modifiés')}, ${fmt.plural(st.deleted, 'supprimé', 'supprimés')}.` : 'Données mises à jour.');
+      toast(st
+        ? L(`Données mises à jour : ${fmt.plural(st.added, 'nouveau', 'nouveaux')}, ${fmt.plural(st.changed, 'modifié', 'modifiés')}, ${fmt.plural(st.deleted, 'supprimé', 'supprimés')}.`,
+          `Data updated: ${fmt.num(st.added)} new, ${fmt.num(st.changed)} changed, ${fmt.num(st.deleted)} deleted.`)
+        : L('Données mises à jour.', 'Data updated.'));
       if (root.dataset.view === 'result' && !views.hasPanel()) route({ silent: true });   // réaffiche l'écran courant avec les nouvelles données
     }
     hideOverlay();
     $('mock-banner').hidden = s.mode !== 'Mock';
     const stale = s.lastSyncAt && Date.now() - new Date(s.lastSyncAt).getTime() > 24 * 3600 * 1000;
     $('stale-banner').hidden = !stale;
-    if (stale) $('stale-banner').textContent = `${fmt.dataAge(s.lastSyncAt)} : données de plus de 24 h. Une synchronisation est recommandée.`;
+    if (stale) $('stale-banner').textContent = L(`${fmt.dataAge(s.lastSyncAt)} : données de plus de 24 h. Une synchronisation est recommandée.`, `${fmt.dataAge(s.lastSyncAt)}: data older than 24 h. A sync is recommended.`);
     layout();   // le texte de la pastille a pu changer de longueur : on replace la barre du haut
   },
   onError: handleError,

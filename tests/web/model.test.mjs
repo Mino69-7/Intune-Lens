@@ -1,11 +1,12 @@
 // Tests de la logique pure de l'interface (aucun DOM, aucun réseau).
 // Exécution : node --test tests/web/
+import './lang-fr.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   norm, buildGroupRows, buildObjectRows, familyCounts, toCsv, toTsv, groupExport, safeFileName, asArray,
 } from '../../web/js/ui/model.js';
-import { typeLabel, filterLabel } from '../../web/js/i18n.fr.js';
+import { typeLabel, filterLabel } from '../../web/js/i18n.js';
 
 const view = {
   group: { id: 'g1', name: 'GRP-Test', exists: true },

@@ -1,4 +1,5 @@
 // Tests de la logique pure des fiches Utilisateur / Machine (node --test).
+import './lang-fr.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {

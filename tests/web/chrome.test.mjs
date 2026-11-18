@@ -1,4 +1,5 @@
 // Barre du haut : aucun chevauchement, aucun débordement, pour toutes les largeurs de 320 à 2 560 px.
+import './lang-fr.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeChromeLayout, ROW_H } from '../../web/js/ui/chrome.js';

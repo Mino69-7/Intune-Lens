@@ -100,7 +100,7 @@ function Start-IalServer {
         }
         catch {
             $l.Close()
-            if ($i -ge $attempts) { throw "Impossible d'écouter sur 127.0.0.1:$p : $($_.Exception.Message)" }
+            if ($i -ge $attempts) { throw (Tx "Impossible d'écouter sur 127.0.0.1:$p : $($_.Exception.Message)" "Cannot listen on 127.0.0.1:${p}: $($_.Exception.Message)") }
         }
     }
 }
@@ -151,6 +151,19 @@ function Send-IalError {
     <# Message français, sans détail interne. #>
     param($Context, [int]$Status, [string]$Message)
     Send-IalJson -Context $Context -Status $Status -Body ([ordered]@{ error = $Message })
+}
+
+#endregion
+
+#region Page d'accueil (langue et thème enregistrés, voir Cache.ps1) -------------
+
+function Get-IalIndexBytes {
+    <# Page d'accueil avec la langue et le thème enregistrés écrits dans <html> : aucun flash au chargement. #>
+    param([string]$Path)
+    $html = [System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8)
+    $l = $script:IalPrefs.Values.lang; $t = $script:IalPrefs.Values.theme
+    $html = ([regex]'<html[^>]*>').Replace($html, "<html lang=""$l"" data-lang=""$l"" data-theme=""$t"">", 1)
+    return [System.Text.UTF8Encoding]::new($false).GetBytes($html)
 }
 
 #endregion
@@ -233,7 +246,7 @@ function Update-IalSyncJobs {
     if ($State -and $State.JobInitFailed -and -not $State.ForegroundSync -and -not $State.SyncRunning) {
         $State.JobInitFailed = $false
         $State.ForegroundSync = $true
-        Write-IalLog -Level WARN -Message ("La synchronisation en arrière-plan n'a pas pu démarrer ({0}). Repli : synchronisation au premier plan ; l'interface ne répondra pas pendant les synchronisations." -f $State.LastError)
+        Write-IalLog -Level WARN -Message ((Tx 'La synchronisation en arrière-plan n''a pas pu démarrer ({0}). Repli : synchronisation au premier plan ; l''interface ne répondra pas pendant les synchronisations.' 'The background sync could not start ({0}). Fallback: foreground sync; the interface will not respond during syncs.') -f $State.LastError)
         Invoke-IalSyncForeground -State $State -Mode $State.JobInitFailedMode
     }
 }
@@ -309,6 +322,13 @@ function Invoke-IalApiRoute {
         $msg = if ($mode -eq 'full') { 'Synchronisation complète lancée.' } else { 'Synchronisation incrémentale lancée.' }
         return Send-IalJson -Context $Context -Status 202 -Body ([ordered]@{ ok = $true; message = $msg })
     }
+    if ($Path -eq '/api/prefs') {
+        if ($Method -ne 'POST') { return Send-IalError $Context 405 'Méthode non autorisée.' }
+        $body = Read-IalJsonBody -Request $req
+        $v = if ($body -is [System.Collections.IDictionary]) { Set-IalPrefs -Changes $body } else { $null }
+        if (-not $v) { return Send-IalError $Context 400 'Paramètres invalides.' }
+        return Send-IalJson -Context $Context -Body ([ordered]@{ ok = $true; prefs = $v })
+    }
     if ($Path -eq '/api/cache/clear') {
         if ($Method -ne 'POST') { return Send-IalError $Context 405 'Méthode non autorisée.' }
         $n = Clear-IalCache
@@ -361,7 +381,7 @@ function Invoke-IalApiRoute {
         }
         catch {
             # Graph injoignable, limité, etc. : la fiche n'est pas affichable, l'outil continue.
-            Write-IalLog -Level WARN -Message "Lecture des appartenances impossible : $($_.Exception.Message)"
+            Write-IalLog -Level WARN -Message (Tx "Lecture des appartenances impossible : $($_.Exception.Message)" "Cannot read memberships: $($_.Exception.Message)")
             $st = [int]$_.Exception.Data['IalStatus']
             $msg = if ($st -eq 429) { 'Microsoft Graph limite les requêtes : réessayez dans un instant.' } else { 'Lecture des groupes impossible pour le moment. Consultez le journal local.' }
             return Send-IalError $Context 502 $msg
@@ -429,7 +449,7 @@ function Invoke-IalRequest {
             $blocked = & $clean $rep['blocked-uri']
             $State.CspViolations++
             if ($State.CspViolations -le $script:IalCspMaxLogged) {
-                Write-IalLog -Level WARN -Message "CSP : ressource bloquée par « $directive » ($blocked)."
+                Write-IalLog -Level WARN -Message (Tx "CSP : ressource bloquée par « $directive » ($blocked)." "CSP: resource blocked by '$directive' ($blocked).")
             }
         }
         $Context.Response.StatusCode = 204
@@ -456,7 +476,7 @@ function Invoke-IalRequest {
         return Send-IalError $Context 404 'Introuvable.'
     }
     $ext = [System.IO.Path]::GetExtension($file).ToLowerInvariant()
-    $bytes = [System.IO.File]::ReadAllBytes($file)
+    $bytes = if ($path -eq '/') { Get-IalIndexBytes -Path $file } else { [System.IO.File]::ReadAllBytes($file) }
     Send-IalBytes -Context $Context -Status 200 -ContentType $script:IalContentTypes[$ext] -Bytes $bytes
 }
 
@@ -475,7 +495,7 @@ function Invoke-IalServerLoop {
             Invoke-IalRequest -Context $ctx -Server $Server -State $State
         }
         catch {
-            Write-IalLog -Level ERROR -Message "Erreur de traitement d'une requête : $($_.Exception.Message)"
+            Write-IalLog -Level ERROR -Message (Tx "Erreur de traitement d'une requête : $($_.Exception.Message)" "Error while handling a request: $($_.Exception.Message)")
             try { Send-IalError $ctx 500 'Erreur interne. Consultez le journal local.' } catch { }
         }
         finally {

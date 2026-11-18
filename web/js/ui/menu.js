@@ -2,6 +2,7 @@
 
 import { $, h, rectIn } from './dom.js';
 import { markChanged } from '../glass.js';
+import { L } from '../i18n.js';
 
 let anchor = null;
 let onDocDown = null;
@@ -42,7 +43,7 @@ export function openMenu(anchorEl, items, label) {
       // Ligne d'état non cliquable : coche bleue à droite quand l'état est bon.
       m.append(h('div', {
         class: `menu-item menu-state${it.checked ? ' is-ok' : ''}`, role: 'presentation',
-        'aria-label': `${it.label}${it.checked ? ' : oui' : ''}`, text: it.label,
+        'aria-label': `${it.label}${it.checked ? L(' : oui', ': yes') : ''}`, text: it.label,
       }));
     } else if (it.type === 'toggle') {
       // Interrupteur : bascule sur place, le menu reste ouvert.

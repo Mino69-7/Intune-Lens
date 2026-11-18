@@ -1,4 +1,5 @@
 // Comparaison de deux groupes / deux éléments : alignement, écarts, filtres, export.
+import './lang-fr.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { compareGroups, compareObjects, compareCounts, buildCompareRows, compareExport } from '../../web/js/ui/compare.js';

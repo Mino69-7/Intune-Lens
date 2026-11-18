@@ -48,7 +48,7 @@ function Protect-IalCacheDirectory {
         [System.IO.FileSystemAclExtensions]::SetAccessControl([System.IO.DirectoryInfo]::new($Path), $acl)
     }
     catch {
-        Write-IalLog -Level WARN -Message "ACL du dossier de cache non appliquée : $($_.Exception.Message)"
+        Write-IalLog -Level WARN -Message (Tx "ACL du dossier de cache non appliquée : $($_.Exception.Message)" "Cache folder ACL not applied: $($_.Exception.Message)")
     }
 }
 
@@ -117,11 +117,11 @@ function Save-IalCache {
         finally { $fs.Dispose() }
         if ($script:IalCache.BeforeCommit) { & $script:IalCache.BeforeCommit $tmp }
         [System.IO.File]::Move($tmp, $target, $true)
-        Write-IalLog -Level INFO -Message ("Cache enregistré ({0:N0} Ko, chiffré DPAPI)." -f ($bytes.Length / 1KB))
+        Write-IalLog -Level INFO -Message ((Tx 'Cache enregistré ({0:N0} Ko, chiffré DPAPI).' 'Cache saved ({0:N0} KB, DPAPI-encrypted).') -f ($bytes.Length / 1KB))
         return $true
     }
     catch {
-        Write-IalLog -Level WARN -Message "Cache non enregistré : $($_.Exception.Message)"
+        Write-IalLog -Level WARN -Message (Tx "Cache non enregistré : $($_.Exception.Message)" "Cache not saved: $($_.Exception.Message)")
         return $false
     }
     finally {
@@ -152,15 +152,15 @@ function Read-IalCache {
         $c = $json | ConvertFrom-Json -AsHashtable -DateKind String -ErrorAction Stop
     }
     catch {
-        Write-IalLog -Level WARN -Message 'Cache illisible ou corrompu : ignoré, une synchronisation complète va suivre.'
+        Write-IalLog -Level WARN -Message (Tx 'Cache illisible ou corrompu : ignoré, une synchronisation complète va suivre.' 'Cache unreadable or corrupted: ignored, a full sync will follow.')
         return $null
     }
     if ($c -isnot [System.Collections.IDictionary] -or $c['schema'] -ne $script:IalConfig.SchemaVersion -or $c['app'] -ne $script:IalConfig.AppName) {
-        Write-IalLog -Level WARN -Message 'Cache d''une autre version : ignoré.'
+        Write-IalLog -Level WARN -Message (Tx 'Cache d''une autre version : ignoré.' 'Cache from another version: ignored.')
         return $null
     }
     if ($c['mode'] -ne $Mode -or ($TenantId -and $c['tenantId'] -and $c['tenantId'] -ne $TenantId)) {
-        Write-IalLog -Level WARN -Message 'Cache d''un autre mode ou d''un autre tenant : ignoré.'
+        Write-IalLog -Level WARN -Message (Tx 'Cache d''un autre mode ou d''un autre tenant : ignoré.' 'Cache from another mode or tenant: ignored.')
         return $null
     }
     try {
@@ -189,7 +189,7 @@ function Read-IalCache {
         }
     }
     catch {
-        Write-IalLog -Level WARN -Message 'Cache incohérent : ignoré.'
+        Write-IalLog -Level WARN -Message (Tx 'Cache incohérent : ignoré.' 'Inconsistent cache: ignored.')
         return $null
     }
 }
@@ -205,3 +205,52 @@ function Clear-IalCache {
     }
     return $n
 }
+
+#region Réglages enregistrés (langue, thème) ----------------------------------
+# Le stockage du navigateur dépend du port, qui change à chaque lancement : la langue et le thème sont
+# donc gardés par le serveur, dans %LOCALAPPDATA%\IntuneAssignLens\prefs.json (petit JSON en clair,
+# aucune donnée du tenant). -NoDiskCache : en mémoire seulement.
+
+$script:IalPrefs = @{ Path = $null; Values = [ordered]@{ lang = 'en'; theme = 'light' } }
+$script:IalPrefAllowed = @{ lang = @('en', 'fr'); theme = @('light', 'dark') }
+
+function Initialize-IalPrefs {
+    param([string]$Directory)
+    $script:IalPrefs = @{ Path = $null; Values = [ordered]@{ lang = 'en'; theme = 'light' } }
+    if (-not $Directory) { return $script:IalPrefs.Values }
+    $script:IalPrefs.Path = Join-Path $Directory 'prefs.json'
+    if (Test-Path -LiteralPath $script:IalPrefs.Path) {
+        try {
+            $raw = Get-Content -LiteralPath $script:IalPrefs.Path -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+            foreach ($k in $script:IalPrefAllowed.Keys) {
+                if ($raw -is [System.Collections.IDictionary] -and $raw[$k] -in $script:IalPrefAllowed[$k]) { $script:IalPrefs.Values[$k] = [string]$raw[$k] }
+            }
+        }
+        catch { }   # fichier abîmé : valeurs par défaut (il sera réécrit au prochain changement)
+    }
+    return $script:IalPrefs.Values
+}
+
+function Set-IalPrefs {
+    <# Applique les valeurs valides (lang, theme) et les enregistre. Renvoie $null si une valeur est invalide. #>
+    param([System.Collections.IDictionary]$Changes)
+    if (-not $Changes -or $Changes.Count -eq 0) { return $null }
+    foreach ($k in $Changes.Keys) {
+        if (-not $script:IalPrefAllowed.ContainsKey([string]$k) -or [string]$Changes[$k] -notin $script:IalPrefAllowed[[string]$k]) { return $null }
+    }
+    foreach ($k in $Changes.Keys) { $script:IalPrefs.Values[[string]$k] = [string]$Changes[$k] }
+    $script:IalLog.Lang = $script:IalPrefs.Values.lang
+    if ($script:IalPrefs.Path) {
+        try {
+            $dir = Split-Path -Parent $script:IalPrefs.Path
+            if (-not (Test-Path -LiteralPath $dir)) { $null = New-Item -ItemType Directory -Path $dir -Force }
+            $tmp = "$($script:IalPrefs.Path).tmp"
+            Set-Content -LiteralPath $tmp -Value ($script:IalPrefs.Values | ConvertTo-Json -Compress) -Encoding utf8 -NoNewline
+            Move-Item -LiteralPath $tmp -Destination $script:IalPrefs.Path -Force
+        }
+        catch { Write-IalLog -Level WARN -Message (Tx "Réglages non enregistrés : $($_.Exception.Message)" "Settings not saved: $($_.Exception.Message)") }
+    }
+    return $script:IalPrefs.Values
+}
+
+#endregion

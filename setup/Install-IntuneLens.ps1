@@ -1,37 +1,40 @@
 <#
 .SYNOPSIS
-    Installe Intune Lens pour l'utilisateur courant : une seule fois, sans droits administrateur.
+    Installs Intune Lens for the current user: once, without administrator rights.
 
 .DESCRIPTION
-    Lancé par Installer.cmd (double-clic), qui a déjà vérifié PowerShell 7 et débloqué les fichiers du dossier.
-      1. Vérifie PowerShell 7, le mode de langage et l'emplacement du dossier.
-      2. Propose d'installer le module officiel Microsoft.Graph.Authentication (PowerShell Gallery),
-         pour votre compte seulement (-Scope CurrentUser), avec votre accord.
-      3. Crée le raccourci « Intune Lens » (avec le logo) sur le Bureau et dans le menu Démarrer.
-    Rien d'autre : pas de registre, pas de tâche planifiée, pas de service, pas d'élévation.
-    Relancez-le si vous déplacez le dossier. L'outil lui-même (Start-IntuneAssignLens.ps1) n'installe jamais rien.
+    Started by Installer.cmd (double-click), which has already found PowerShell 7 and unblocked the folder's files.
+      1. Checks PowerShell 7, the language mode and where the folder is.
+      2. Offers to install the official Microsoft.Graph.Authentication module (PowerShell Gallery),
+         for your account only (-Scope CurrentUser), with your consent.
+      3. Creates the "Intune Lens" shortcut (with the logo) on the Desktop and in the Start menu.
+    Nothing else: no registry, no scheduled task, no service, no elevation.
+    Run it again if you move the folder. The tool itself (Start-IntuneAssignLens.ps1) never installs anything.
+    Messages are in French when Windows is in French, in English otherwise.
 
 .PARAMETER Uninstall
-    Retire les deux raccourcis et propose d'effacer le cache et le journal (%LOCALAPPDATA%\IntuneAssignLens).
+    Removes both shortcuts and offers to delete the cache, log and settings (%LOCALAPPDATA%\IntuneAssignLens).
 
 .PARAMETER NoLaunch
-    Ne propose pas de lancer l'outil à la fin.
+    Does not offer to start the tool at the end.
 #>
 [CmdletBinding()]
 param([switch]$Uninstall, [switch]$NoLaunch)
 
 if ($PSVersionTable.PSVersion.Major -lt 7) {
-    Write-Host 'Intune Lens nécessite PowerShell 7. Lancez Installer.cmd (double-clic) plutôt que ce script.' -ForegroundColor Red
+    Write-Host 'Intune Lens requires PowerShell 7. Double-click Installer.cmd instead of running this script.' -ForegroundColor Red
     exit 1
 }
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 
+$fr = (Get-UICulture).TwoLetterISOLanguageName -eq 'fr'
+function M([string]$Fr, [string]$En) { if ($fr) { $Fr } else { $En } }
 function Write-Ok([string]$Message) { Write-Host "  [OK] $Message" -ForegroundColor Green }
 function Write-Note([string]$Message) { Write-Host "  [!]  $Message" -ForegroundColor Yellow }
 function Write-Bad([string]$Message) { Write-Host "  [X]  $Message" -ForegroundColor Red }
 function Read-YesNo([string]$Question, [bool]$Default = $true) {
-    $hint = if ($Default) { '[O/n]' } else { '[o/N]' }
+    $hint = if ($Default) { M '[O/n]' '[Y/n]' } else { M '[o/N]' '[y/N]' }
     $a = Read-Host "  $Question $hint"
     if ([string]::IsNullOrWhiteSpace($a)) { return $Default }
     return ($a.Trim() -match '^(o|oui|y|yes)$')
@@ -47,70 +50,70 @@ $links = @(
 ) | Where-Object { $_ } | ForEach-Object { Join-Path $_ "$appName.lnk" }
 
 Write-Host ''
-Write-Host "  $appName : $(if ($Uninstall) { 'désinstallation' } else { 'installation' })" -ForegroundColor Cyan
-Write-Host "  Dossier : $root"
+Write-Host "  $appName : $(if ($Uninstall) { M 'désinstallation' 'uninstall' } else { M 'installation' 'setup' })" -ForegroundColor Cyan
+Write-Host "  $(M 'Dossier' 'Folder') : $root"
 Write-Host ''
 
-# ------------------------------------------------------------------ Désinstallation
+# ------------------------------------------------------------------ Uninstall
 if ($Uninstall) {
     foreach ($l in $links) {
-        if (Test-Path -LiteralPath $l) { Remove-Item -LiteralPath $l; Write-Ok "Raccourci retiré : $l" }
+        if (Test-Path -LiteralPath $l) { Remove-Item -LiteralPath $l; Write-Ok "$(M 'Raccourci retiré' 'Shortcut removed') : $l" }
     }
     $data = Join-Path $env:LOCALAPPDATA 'IntuneAssignLens'
-    if ((Test-Path -LiteralPath $data) -and (Read-YesNo "Effacer aussi le cache et le journal ($data) ?" $false)) {
+    if ((Test-Path -LiteralPath $data) -and (Read-YesNo (M "Effacer aussi le cache, le journal et les réglages ($data) ?" "Also delete the cache, log and settings ($data)?") $false)) {
         Remove-Item -LiteralPath $data -Recurse
-        Write-Ok 'Cache et journal effacés.'
+        Write-Ok (M 'Cache, journal et réglages effacés.' 'Cache, log and settings deleted.')
     }
     Write-Host ''
-    Write-Host '  Il reste à supprimer ce dossier, si vous le souhaitez. Le module Microsoft Graph reste installé.'
+    Write-Host "  $(M 'Il reste à supprimer ce dossier, si vous le souhaitez. Le module Microsoft Graph reste installé.' 'You can now delete this folder if you wish. The Microsoft Graph module stays installed.')"
     exit 0
 }
 
-# ------------------------------------------------------------------ 1. Vérifications
+# ------------------------------------------------------------------ 1. Checks
 if (-not (Test-Path -LiteralPath $start) -or -not (Test-Path -LiteralPath $icon)) {
-    Write-Bad "Fichiers de l'outil introuvables dans $root. Le dossier est-il complet ?"
+    Write-Bad (M "Fichiers de l'outil introuvables dans $root. Le dossier est-il complet ?" "Tool files not found in $root. Is the folder complete?")
     exit 1
 }
 if ($root -match '\\AppData\\Local\\Temp\\') {
-    Write-Bad "Le dossier est dans un emplacement temporaire : l'archive ZIP n'a sans doute pas été extraite."
-    Write-Host '       Clic droit sur le ZIP → « Extraire tout… », vers un dossier durable (par exemple Documents), puis relancez Installer.cmd.'
+    Write-Bad (M "Le dossier est dans un emplacement temporaire : l'archive ZIP n'a sans doute pas été extraite." 'The folder is in a temporary location: the ZIP file was probably not extracted.')
+    Write-Host "       $(M 'Clic droit sur le ZIP → « Extraire tout… », vers un dossier durable (par exemple Documents), puis relancez Installer.cmd.' 'Right-click the ZIP → "Extract All…", to a lasting folder (for example Documents), then run Installer.cmd again.')"
     exit 1
 }
 if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') {
-    Write-Bad "PowerShell est en mode '$($ExecutionContext.SessionState.LanguageMode)' (WDAC / AppLocker) : l'outil ne peut pas fonctionner sur ce poste."
+    Write-Bad (M "PowerShell est en mode '$($ExecutionContext.SessionState.LanguageMode)' (WDAC / AppLocker) : l'outil ne peut pas fonctionner sur ce poste." "PowerShell is in '$($ExecutionContext.SessionState.LanguageMode)' mode (WDAC / AppLocker): the tool cannot run on this computer.")
     exit 1
 }
 Write-Ok "PowerShell $($PSVersionTable.PSVersion)"
 if ($root -match '\\Downloads\\|\\Téléchargements\\') {
-    Write-Note 'Le dossier est dans Téléchargements : si vous videz ce dossier, le raccourci ne marchera plus. Vous pourrez le déplacer puis relancer Installer.cmd.'
+    Write-Note (M 'Le dossier est dans Téléchargements : si vous videz ce dossier, le raccourci ne marchera plus. Vous pourrez le déplacer puis relancer Installer.cmd.' 'The folder is in Downloads: if you empty that folder, the shortcut will stop working. You can move it, then run Installer.cmd again.')
 }
 
-# ------------------------------------------------------------------ 2. Module Microsoft Graph
+# ------------------------------------------------------------------ 2. Microsoft Graph module
 $module = 'Microsoft.Graph.Authentication'
 $found = Get-Module -ListAvailable -Name $module | Sort-Object Version -Descending | Select-Object -First 1
 if ($found) {
-    Write-Ok "Module $module $($found.Version)"
+    Write-Ok "$(M 'Module' 'Module') $module $($found.Version)"
 }
 else {
-    Write-Note "Le module $module (Microsoft) est nécessaire pour se connecter à votre tenant."
-    if (Read-YesNo "L'installer depuis la PowerShell Gallery, pour votre compte seulement (sans droits administrateur) ?") {
+    Write-Note (M "Le module $module (Microsoft) est nécessaire pour se connecter à votre tenant." "The $module module (Microsoft) is needed to connect to your tenant.")
+    if (Read-YesNo (M "L'installer depuis la PowerShell Gallery, pour votre compte seulement (sans droits administrateur) ?" 'Install it from the PowerShell Gallery, for your account only (no administrator rights)?')) {
         try {
             Install-Module -Name Microsoft.Graph.Authentication -Scope CurrentUser -Repository PSGallery -Force -ErrorAction Stop
-            Write-Ok "Module $module installé."
+            Write-Ok (M "Module $module installé." "Module $module installed.")
         }
         catch {
-            Write-Bad "Installation impossible : $($_.Exception.Message)"
-            Write-Host "       Installez-le vous-même (ou via votre service informatique) : Install-Module $module -Scope CurrentUser"
-            Write-Host '       Le raccourci est créé quand même : relancez Intune Lens une fois le module installé.'
+            Write-Bad "$(M 'Installation impossible' 'Installation failed') : $($_.Exception.Message)"
+            Write-Host "       $(M 'Installez-le vous-même (ou via votre service informatique) :' 'Install it yourself (or through your IT department):') Install-Module $module -Scope CurrentUser"
+            Write-Host "       $(M 'Le raccourci est créé quand même : relancez Intune Lens une fois le module installé.' 'The shortcut is created anyway: start Intune Lens again once the module is installed.')"
         }
     }
     else {
-        Write-Note "Sans ce module, seul le mode démo fonctionne (pwsh -File .\Start-IntuneAssignLens.ps1 -Mock)."
+        Write-Note (M 'Sans ce module, seul le mode démo fonctionne (pwsh -File .\Start-IntuneAssignLens.ps1 -Mock).' 'Without this module, only demo mode works (pwsh -File .\Start-IntuneAssignLens.ps1 -Mock).')
     }
 }
 
-# ------------------------------------------------------------------ 3. Raccourcis
-# pwsh stable : installation classique, puis alias de la version Microsoft Store, puis celui qui exécute ce script.
+# ------------------------------------------------------------------ 3. Shortcuts
+# Stable pwsh: classic install, then the Microsoft Store alias, then the one running this script.
 $pwsh = @(
     (Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'),
     (Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\pwsh.exe'),
@@ -124,15 +127,15 @@ foreach ($l in $links) {
     $s.Arguments = "-NoProfile -File `"$start`" -PauseOnError"
     $s.WorkingDirectory = $root
     $s.IconLocation = "$icon,0"
-    $s.Description = 'Intune Lens : assignations Intune, en lecture seule'
+    $s.Description = 'Intune Lens: Intune assignments, read-only'
     $s.Save()
-    Write-Ok "Raccourci : $l"
+    Write-Ok "$(M 'Raccourci' 'Shortcut') : $l"
 }
 
 Write-Host ''
-Write-Host '  Installation terminée. Double-cliquez « Intune Lens » sur le Bureau, puis connectez-vous avec votre compte.' -ForegroundColor Cyan
-Write-Host '  Épingler : Démarrer → Toutes les applications → clic droit sur « Intune Lens » → « Épingler à l''écran de démarrage ».'
+Write-Host "  $(M 'Installation terminée. Double-cliquez « Intune Lens » sur le Bureau, puis connectez-vous avec votre compte.' 'Setup complete. Double-click "Intune Lens" on the Desktop, then sign in with your account.')" -ForegroundColor Cyan
+Write-Host "  $(M 'Épingler : Démarrer → Toutes les applications → clic droit sur « Intune Lens » → « Épingler à l''écran de démarrage ».' 'To pin it: Start → All apps → right-click "Intune Lens" → "Pin to Start".')"
 Write-Host ''
-if (-not $NoLaunch -and (Read-YesNo 'Lancer Intune Lens maintenant ?')) {
+if (-not $NoLaunch -and (Read-YesNo (M 'Lancer Intune Lens maintenant ?' 'Start Intune Lens now?'))) {
     Invoke-Item -LiteralPath ($links | Select-Object -Last 1)
 }

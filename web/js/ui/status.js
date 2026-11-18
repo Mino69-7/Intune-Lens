@@ -2,7 +2,7 @@
 
 import { $ } from './dom.js';
 import { api } from '../api.js';
-import { fmt, T } from '../i18n.fr.js';
+import { fmt, T, L } from '../i18n.js';
 import { markChanged } from '../glass.js';
 
 const FAST_MS = 1500;    // pendant une synchronisation
@@ -26,28 +26,28 @@ export function createStatus({ onStatus, onError }) {
     const throttled = s.throttledUntil && new Date(s.throttledUntil) > new Date();
     if (s.lastSyncAt) parts.push(fmt.dataAge(s.lastSyncAt));
     if (s.counts) {
-      parts.push(fmt.plural(s.counts.groups, 'groupe', 'groupes'));
-      parts.push(fmt.plural(s.counts.objects, 'élément', 'éléments'));
+      parts.push(fmt.plural(s.counts.groups, L('groupe', 'group'), L('groupes', 'groups')));
+      parts.push(fmt.plural(s.counts.objects, L('élément', 'item'), L('éléments', 'items')));
     }
-    if (throttled) { parts.push('Microsoft ralentit les requêtes, reprise automatique'); dot = 'warn'; }
+    if (throttled) { parts.push(L('Microsoft ralentit les requêtes, reprise automatique', 'Microsoft is throttling requests, resuming automatically')); dot = 'warn'; }
     else if (busy(s)) {
       const pc = percent(s);
-      parts.push(pc === null ? T.phase[s.phase] || 'Synchronisation' : `Synchronisation ${pc} %`);
+      parts.push(pc === null ? T.phase[s.phase] || L('Synchronisation', 'Syncing') : L(`Synchronisation ${pc} %`, `Syncing ${pc}%`));
       dot = 'syncing';
-    } else if (s.phase === 'error' || s.error) { parts.push('Échec de la dernière synchronisation'); dot = 'error'; }
-    if (!s.ready) parts.unshift(busy(s) ? 'Première synchronisation' : 'Chargement des données…');
+    } else if (s.phase === 'error' || s.error) { parts.push(L('Échec de la dernière synchronisation', 'Last sync failed')); dot = 'error'; }
+    if (!s.ready) parts.unshift(busy(s) ? L('Première synchronisation', 'First sync') : L('Chargement des données…', 'Loading data…'));
     return { text: parts.join(' · '), dot };
   }
 
   /** Version courte, utilisée quand la barre du haut manque de place. */
   function shortText(s) {
     const throttled = s.throttledUntil && new Date(s.throttledUntil) > new Date();
-    if (throttled) return 'Ralenti par Microsoft';
-    if (busy(s)) { const pc = percent(s); return pc === null ? 'Synchronisation…' : `Synchro ${pc} %`; }
-    if (s.phase === 'error' || s.error) return 'Échec de synchro';
-    if (!s.lastSyncAt) return 'Chargement…';
+    if (throttled) return L('Ralenti par Microsoft', 'Throttled by Microsoft');
+    if (busy(s)) { const pc = percent(s); return pc === null ? L('Synchronisation…', 'Syncing…') : L(`Synchro ${pc} %`, `Sync ${pc}%`); }
+    if (s.phase === 'error' || s.error) return L('Échec de synchro', 'Sync failed');
+    if (!s.lastSyncAt) return L('Chargement…', 'Loading…');
     const d = new Date(s.lastSyncAt);
-    return `${d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+    return fmt.shortDateTime(d.toISOString());
   }
 
   function paint(s) {
@@ -56,7 +56,7 @@ export function createStatus({ onStatus, onError }) {
     el.dataset.full = d.text;
     el.dataset.short = shortText(s);
     el.textContent = d.text;
-    $('status-btn').setAttribute('aria-label', `État : ${d.text}. Ouvrir le menu de synchronisation.`);
+    $('status-btn').setAttribute('aria-label', L(`État : ${d.text}. Ouvrir le menu de synchronisation.`, `Status: ${d.text}. Open the sync menu.`));
     $('status-dot').className = `dot ${d.dot === 'ok' ? '' : d.dot}`;
     $('btn-refresh').classList.toggle('spinning', d.dot === 'syncing');
     markChanged($('status-pill'));

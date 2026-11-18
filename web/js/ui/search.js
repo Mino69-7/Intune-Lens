@@ -2,17 +2,17 @@
 
 import { $, h, rectIn } from './dom.js';
 import { api } from '../api.js';
-import { fmt, T } from '../i18n.fr.js';
+import { fmt, T, L, familyLabel } from '../i18n.js';
 import { markChanged } from '../glass.js';
 
 const LIMIT = 10;
 
 /** Texte secondaire d'une suggestion selon son type. */
 export function suggestMeta(r) {
-  if (r.kind === 'object') return `${r.family} · ${fmt.plural(r.count, 'assignation', 'assignations')}`;
-  if (r.kind === 'user') return [String(r.upn || '').split('@')[0], fmt.plural(r.count, 'appareil', 'appareils')].filter(Boolean).join(' · ');
-  if (r.kind === 'device') return [r.os, r.userName || 'Sans utilisateur', r.stale ? 'inactive' : ''].filter(Boolean).join(' · ');
-  return fmt.plural(r.count, 'élément', 'éléments');
+  if (r.kind === 'object') return `${familyLabel(r.family)} · ${fmt.plural(r.count, L('assignation', 'assignment'), L('assignations', 'assignments'))}`;
+  if (r.kind === 'user') return [String(r.upn || '').split('@')[0], fmt.plural(r.count, L('appareil', 'device'), L('appareils', 'devices'))].filter(Boolean).join(' · ');
+  if (r.kind === 'device') return [r.os, r.userName || L('Sans utilisateur', 'No user'), r.stale ? L('inactive', 'inactive') : ''].filter(Boolean).join(' · ');
+  return fmt.plural(r.count, L('élément', 'item'), L('éléments', 'items'));
 }
 
 export function createSearch({ getKind, onOpen, onError, onCancelPick }) {
@@ -70,7 +70,7 @@ export function createSearch({ getKind, onOpen, onError, onCancelPick }) {
     results = (res.results || []).filter((r) => !pick || r.id !== pick.excludeId).slice(0, LIMIT);
     active = -1;
     if (!results.length) {
-      list.replaceChildren(h('div', { class: 'suggest-empty', role: 'presentation', text: `Aucun résultat pour « ${q} ».` }));
+      list.replaceChildren(h('div', { class: 'suggest-empty', role: 'presentation', text: L(`Aucun résultat pour « ${q} ».`, `No results for "${q}".`) }));
       open();
       return;
     }
@@ -83,7 +83,7 @@ export function createSearch({ getKind, onOpen, onError, onCancelPick }) {
         h('span', { class: 'suggest-meta', text: suggestMeta(r) }),
       ]));
     const total = `${fmt.num(res.total)}${res.totalCapped ? '+' : ''}`;
-    items.push(h('div', { class: 'suggest-foot', role: 'presentation', text: `${total} résultat(s) · ${res.elapsedMs} ms · Entrée pour ouvrir` }));
+    items.push(h('div', { class: 'suggest-foot', role: 'presentation', text: L(`${total} résultat(s) · ${res.elapsedMs} ms · Entrée pour ouvrir`, `${total} result(s) · ${res.elapsedMs} ms · Enter to open`) }));
     list.replaceChildren(...items);
     open();
   }
@@ -101,7 +101,7 @@ export function createSearch({ getKind, onOpen, onError, onCancelPick }) {
       if (e.name === 'AbortError') return;
       if (e.kind === 'http' && e.status === 503 && mine === seq) {
         results = [];
-        list.replaceChildren(h('div', { class: 'suggest-empty', role: 'presentation', text: 'Données en cours de chargement : la recherche sera disponible à la fin de la première synchronisation.' }));
+        list.replaceChildren(h('div', { class: 'suggest-empty', role: 'presentation', text: L('Données en cours de chargement : la recherche sera disponible à la fin de la première synchronisation.', 'Data is loading: search will be available when the first sync finishes.') }));
         open();
         return;
       }
@@ -150,7 +150,7 @@ export function createSearch({ getKind, onOpen, onError, onCancelPick }) {
       const kind = p ? p.kind : getKind();
       const text = p ? T.comparePlaceholder[p.kind] : T.searchPlaceholder[kind];
       input.placeholder = text;
-      input.setAttribute('aria-label', p ? `${text} (comparaison avec ${p.label})` : text);
+      input.setAttribute('aria-label', p ? L(`${text} (comparaison avec ${p.label})`, `${text} (comparing with ${p.label})`) : text);
       input.value = '';
       close();
     },

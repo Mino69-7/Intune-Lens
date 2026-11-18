@@ -1,8 +1,9 @@
-// state.js : réglages et préférences locales (navigateur). Tout accès au stockage est protégé :
-// l'interface fonctionne normalement si le stockage est indisponible.
+// state.js : per-browser conveniences (recent searches). Every storage access is guarded:
+// the interface works normally when storage is unavailable.
+//
+// Language and theme are NOT stored here: browser storage is tied to the port, which changes at
+// every launch. They are saved by the server (%LOCALAPPDATA%\IntuneAssignLens\prefs.json).
 
-// v2 : nouvelles valeurs par défaut (thème clair) ; l'ancienne clé v1 est ignorée.
-const KEY_SETTINGS = 'ial.settings.v2';
 const KEY_RECENT = 'ial.recent.v1';
 const MAX_RECENT = 8;
 
@@ -13,21 +14,10 @@ function read(key, fallback) {
   } catch { return fallback; }
 }
 function write(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* stockage indisponible */ }
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable */ }
 }
 
-// Thème clair par défaut (préférence de l'utilisateur), même si Windows est en sombre.
-// Deux thèmes seulement : clair / sombre (interrupteur « Mode sombre » dans ⚙, ou touche T).
-const defaults = { theme: 'light', kind: 'group' };
-const settings = { ...defaults, ...read(KEY_SETTINGS, {}) };
-if (!['light', 'dark'].includes(settings.theme)) settings.theme = 'light';
-delete settings.effects;   // réglage d'effets supprimé : verre « Léger » fixe
-if (!['user', 'device', 'group', 'object'].includes(settings.kind)) settings.kind = 'group';
-
 export const store = {
-  get: (k) => settings[k],
-  set(k, v) { settings[k] = v; write(KEY_SETTINGS, settings); },
-
   recent() {
     const r = read(KEY_RECENT, []);
     return Array.isArray(r) ? r.filter((x) => x && typeof x.id === 'string' && typeof x.name === 'string').slice(0, MAX_RECENT) : [];

@@ -6,16 +6,26 @@ Set-StrictMode -Version 3.0
 $script:IalLog = @{
     FilePath = $null      # défini par Initialize-IalLog ; $null = console seulement
     Quiet    = $false     # $true = rien à la console (tests)
+    Lang     = 'en'       # langue de la console et du journal : 'en' (défaut) ou 'fr' (réglage enregistré)
     Lock     = [object]::new()
+}
+
+function Tx {
+    <# Texte dans la langue de la console (réglage « Language » de l'interface). Usage : Tx 'français' 'English' #>
+    param([string]$Fr, [string]$En)
+    if ($script:IalLog.Lang -eq 'fr') { return $Fr }
+    return $En
 }
 
 function Initialize-IalLog {
     [CmdletBinding()]
     param(
         [string]$Directory,
-        [switch]$Quiet
+        [switch]$Quiet,
+        [ValidateSet('en', 'fr')][string]$Lang = 'en'
     )
     $script:IalLog.Quiet = [bool]$Quiet
+    $script:IalLog.Lang = $Lang
     if ($Directory) {
         if (-not (Test-Path -LiteralPath $Directory)) {
             $null = New-Item -ItemType Directory -Path $Directory -Force
