@@ -1,0 +1,14 @@
+# Raccourcis Windows : ils contiennent des chemins locaux, le nom du poste et le SID de l'utilisateur.
+*.lnk
+
+# Librairie WebGL essayée puis écartée (jamais servie) : démos, vidéo et sources tierces inutiles au dépôt.
+web/vendor/
+
+# Documents internes (contexte de l'auteur, jamais publiés) : validation sur son tenant.
+docs/validation-m6.md
+
+# Divers
+node_modules/
+*.log
+Thumbs.db
+desktop.ini

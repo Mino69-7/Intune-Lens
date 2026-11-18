@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <title>Intune Lens</title>
+  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#4CA6FF"/><stop offset="1" stop-color="#0A5FDB"/>
+  </linearGradient></defs>
+  <rect x="12" y="12" width="232" height="232" rx="56" fill="url(#g)"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round">
+    <circle cx="112" cy="110" r="54" stroke-width="20"/>
+    <path d="M154 152L196 194" stroke-width="28"/>
+    <path d="M90 98H134" stroke-width="13.0" opacity=".92"/><path d="M90 122H120" stroke-width="13.0" opacity=".92"/>
+  </g>
+</svg>

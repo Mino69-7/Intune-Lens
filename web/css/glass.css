@@ -1,0 +1,104 @@
+/* glass.css : habillage « verre » inspiré du Liquid Glass d'Apple (macOS / iOS 26), 100 % CSS.
+   Mode posé sur la racine par js/glass.js :
+     .fx-light : verre « Léger » (par défaut) : flou modéré + saturation, liseré lumineux, ombre douce ;
+     .fx-off   : surfaces opaques, aucun effet (réglage « Désactivé » ou contraste élevé Windows).
+   Le texte reste lisible dans tous les modes. */
+
+/* ---------- Base commune ---------- */
+.glass {
+  position: absolute;
+  border-radius: var(--r-xl);
+  background: var(--glass-fill-clear);
+  color: var(--fg);
+  box-shadow:
+    var(--glass-shadow),
+    0 0 0 0.5px var(--glass-edge),                       /* contour extérieur très fin */
+    inset 0 1px 0 0 var(--glass-rim-hi),                 /* arête supérieure lumineuse */
+    inset 0 -12px 20px -16px var(--glass-inner-shade);   /* épaisseur : légère ombre interne en bas */
+}
+
+/* Surfaces de contenu : un peu plus couvrantes (lecture de texte au-dessus du tableau qui défile). */
+.glass.g-header,
+.glass.g-panel,
+.glass.g-menu,
+.glass.g-suggest {
+  background: var(--glass-fill);
+}
+
+/* Liseré lumineux en dégradé (signature Liquid Glass) : 1 px, fort en haut à gauche, faible en bas à droite.
+   Technique : fond en dégradé masqué pour ne garder que la bordure. Pas de :first-child (canvas injecté). */
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(140deg,
+      var(--glass-rim-hi) 0%,
+      var(--glass-rim-mid) 32%,
+      var(--glass-rim-mid) 68%,
+      var(--glass-rim-lo) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Reflet doux sur la moitié haute. */
+.glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, var(--glass-sheen) 0%, transparent 46%);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Le contenu passe au-dessus du reflet. */
+.glass > * { position: relative; z-index: 1; }
+
+/* ---------- Verre « Léger » (rendu retenu) ---------- */
+.fx-light .glass {
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  backdrop-filter: blur(8px) saturate(140%);
+  background: var(--glass-fill-strong);
+}
+.fx-light .glass::after { display: none; }
+
+.fx-off .glass {
+  background: var(--glass-solid);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.fx-off .glass::after,
+.fx-off .glass::before { display: none; }
+
+/* ---------- Surface des éléments répétés (lignes, chips) ---------- */
+.surface {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: 0 0 0 0.5px var(--row-border), 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.fx-off .surface { background: var(--surface-solid); }
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass { background: var(--glass-fill-strong); }
+}
+
+/* ---------- Contraste élevé Windows : couleurs système, aucun effet ---------- */
+@media (forced-colors: active) {
+  .glass, .surface {
+    background: Canvas !important;
+    color: CanvasText;
+    border: 1px solid CanvasText;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .glass::after, .glass::before { display: none; }
+  .glass > canvas { display: none; }
+}

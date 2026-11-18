@@ -1,0 +1,3 @@
+# Installer.cmd : octets conservés tels quels (fins de ligne Windows CRLF), y compris dans le ZIP GitHub.
+*.cmd -text
+*.ico binary

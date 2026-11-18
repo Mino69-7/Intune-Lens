@@ -1,0 +1,102 @@
+/* base.css : remise à zéro, typographie, structure des couches (spec 7.4). */
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; }
+
+body {
+  font-family: var(--font-text);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+[hidden] { display: none !important; }
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+.mono { font-family: var(--font-mono); font-size: 0.92em; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--fg-3); }
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- Couches ---- */
+
+/* Racine du verre : positionnée, jamais capturée par la librairie. */
+.root {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Fond (dans un ENFANT de la racine, comme l'exige la librairie) : un seul gris, éclairé doucement
+   par le haut. Aucune autre teinte, aucune animation. */
+.layer-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-color: var(--bg);
+  background-image: var(--bg-light);
+  pointer-events: none;
+}
+
+/* Contenu défilant, sous les verres flottants. */
+.layer-content {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Même marge latérale que la barre du haut et l'en-tête (--pad : 16 px, 24 px dès 900 px). */
+  padding: var(--content-top, 96px) var(--pad, 16px) var(--s-7);
+  scroll-padding-top: var(--content-top, 96px);
+  outline: none;
+}
+.container { max-width: var(--content-max); margin: 0 auto; }
+
+/* Bord de défilement : bande floutée en fondu, entre le contenu et les verres flottants. */
+.scroll-edge {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: var(--edge-h, 84px);
+  z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--edge-color) 0%, var(--edge-color) 55%, transparent 100%);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 60%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 60%, transparent 100%);
+}
+@media (forced-colors: active) { .scroll-edge { display: none; } }
+
+/* Barre de défilement discrète */
+.layer-content { scrollbar-width: thin; scrollbar-color: var(--neutral-strong) transparent; }
+
+/* Verres flottants : enfants directs de la racine, au-dessus du contenu. */
+.root > .glass { z-index: 10; }
+.root > .g-suggest,
+.root > .g-menu { z-index: 30; }
+.root > .g-panel { z-index: 20; }
+.toast { z-index: 40; }
+.overlay { z-index: 50; }
+
+@media (forced-colors: active) {
+  .layer-bg { display: none; }
+}
