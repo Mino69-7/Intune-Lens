@@ -12,6 +12,10 @@ The interface opens in Microsoft Edge. It is served by a small PowerShell server
 
 The interface is available in **English** (default) and **French**: ⚙ → Language. The choice is kept across restarts.
 
+<p align="center">
+  <img src="docs/screenshots/user.webp" width="900" alt="User page: every Intune item that targets the user, device by device, with status, groups and intent">
+</p>
+
 ---
 
 ## 1. Requirements
@@ -66,6 +70,10 @@ pwsh -File .\Start-IntuneAssignLens.ps1 -TenantId <tenant-id>   # to force a ten
 3. Edge opens on the interface. On the first launch, the full sync runs in the background; its progress is shown in the pill at the top right.
 4. `Ctrl+C` in the console, or ⚙ → "Stop the tool", stops the server and closes the Graph session.
 
+<p align="center">
+  <img src="docs/screenshots/home.webp" width="820" alt="Home screen: search by user, device, Entra group or configuration">
+</p>
+
 ### Starting with a double-click
 
 `Installer.cmd` creates the **Intune Lens** shortcut (Desktop and Start menu). It runs `pwsh -NoProfile -File "<folder>\Start-IntuneAssignLens.ps1" -PauseOnError`: if startup fails, the window stays open with the message.
@@ -114,6 +122,25 @@ The illustrated guide (in French) is in [docs/guide-lecture.md](docs/guide-lectu
 - **Compare**: on any page, click "Compare", then pick a second item of the same type in the search. Columns A and B are shown side by side, with filters "Differences", "Only A", "Only B", "Different" (included on one side, excluded on the other). ⇄ swaps A and B, "Close" goes back to A, `Esc` cancels the pick. Works for groups, configurations, users and devices.
 - **Share a page**: the **Copy link** button at the top of each page copies an `intune-lens://user/<id>` link (type + Microsoft ID, nothing else). A colleague who has Intune Lens **pastes it (Ctrl+V)** anywhere in the tool and the page opens. The link is not clickable (Teams, email): that would require registering a protocol in the Windows registry, which the tool does not do. Your colleague only sees what their own Intune permissions allow them to read.
 - **Global assignments** (All users / All devices): shown **for information** on a group page. This version does not compute the members' actual membership.
+
+### Screenshots
+
+*Demo mode, fictitious data.*
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/group.webp" alt="Entra group page: everything assigned to the group, by family, included or excluded"><br><sub><b>Entra group</b>: everything assigned to the group</sub></td>
+    <td width="50%"><img src="docs/screenshots/configuration.webp" alt="Configuration page: every group the item is assigned to"><br><sub><b>Configuration</b>: every group the item is assigned to</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/device.webp" alt="Device page: targeted items, through the user or through the device"><br><sub><b>Device</b>: targeted through the user or the device</sub></td>
+    <td><img src="docs/screenshots/compare.webp" alt="Comparison of two Entra groups side by side"><br><sub><b>Compare</b>: two groups side by side</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/compare-detail.webp" alt="Detail panel of a difference between group A and group B"><br><sub><b>Detail</b>: why an item differs between A and B</sub></td>
+    <td><img src="docs/screenshots/user-dark.webp" alt="User page in dark mode"><br><sub><b>Dark mode</b> (<code>T</code>)</sub></td>
+  </tr>
+</table>
 
 ## 5. Microsoft Graph permissions
 
